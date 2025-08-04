@@ -163,7 +163,7 @@ microk8s helm upgrade --install kong kong/kong \
   --set env.pg_database=kong \
   --set env.redis_host=redis-master.default.svc.cluster.local \
   --set env.redis_port=6379 \
-  --set-string env.plugins="bundled\,oidcify\,cors\,rate-limiting\,ip-restriction\,jwt-claims-headers" \
+  --set-string env.plugins="bundled\,oidcify\,cors\,rate-limiting\,ip-restriction" \
   --set env.pluginserver_names=oidcify \
   --set env.pluginserver_oidcify_start_cmd="/usr/local/bin/oidcify -kong-prefix /kong_prefix" \
   --set env.pluginserver_oidcify_query_cmd="/usr/local/bin/oidcify -dump"
@@ -349,16 +349,7 @@ config:
   redirect_uri: "https://aldous.info/callback"
   insecure_skip_verify: true
   consumer_name: oidc-user
-  id_token_claims_header: X-ID-Token-Claims
+  id_token_claims_header: X-Id-Token-Claims
   userinfo_claims_header: X-Userinfo-Claims
   use_userinfo: true
----
-apiVersion: configuration.konghq.com/v1
-kind: KongPlugin
-metadata:
-  name: jwt-claims-to-headers
-plugin: jwt-claims-headers
-config:
-  uri_param_names:
-    - jwt
 EOF

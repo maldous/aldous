@@ -9,3 +9,7 @@ Route::get('/', function () {
 Route::get('/callback', function () {
     return redirect('/');
 });
+
+Route::get('/dump', function (Illuminate\Http\Request $r) {
+    return response()->json($r->headers->all());
+});
