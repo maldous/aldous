@@ -2,16 +2,26 @@ FROM kong/kong-gateway:latest
 
 USER root
 
-RUN \
- apt-get update \
- && apt-get install -y --no-install-recommends wget \
+RUN rm -rf /usr/local/share/lua/5.1/kong/plugins/jwt-claims-headers
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends wget unzip \
+ \
  && wget -O /tmp/oidcify.tar.gz https://github.com/hanlaur/oidcify/releases/download/v1.3.0/oidcify_1.3.0_linux_amd64.tar.gz \
  && tar -xzf /tmp/oidcify.tar.gz -C /tmp \
  && mv /tmp/oidcify_1.3.0_linux_amd64/oidcify /usr/local/bin/oidcify \
  && chmod +x /usr/local/bin/oidcify \
- && apt-get purge -y --auto-remove wget \
- && rm -rf /var/lib/apt/lists/* /tmp/oidcify.tar.gz /tmp/oidcify_1.3.0_linux_amd64 \
+ \
+ && wget -O /tmp/jwt-claims.tar.gz https://github.com/bencejdanko/kong-plugin-jwt-claims-headers/archive/refs/heads/main.tar.gz \
+ && mkdir -p /usr/local/share/lua/5.1/kong/plugins/jwt-claims-headers \
+ && tar -xzf /tmp/jwt-claims.tar.gz \
+ && cp -r kong-plugin-jwt-claims-headers-main/kong/plugins/jwt/* /usr/local/share/lua/5.1/kong/plugins/jwt-claims-headers/ \
+ && rm -rf kong-plugin-jwt-claims-headers-main /tmp/jwt-claims.tar.gz \
+ \
+ && apt-get purge -y --auto-remove wget unzip \
+ && rm -rf /var/lib/apt/lists/* /tmp/* \
  && mkdir -p /etc/kong \
  && touch /etc/kong/kong.license
 
 USER kong
+

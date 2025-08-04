@@ -85,11 +85,6 @@ spec:
   storage:
     size: 10Gi
     storageClass: ceph-rbd
-  bootstrap:
-    initdb:
-      owner: aldous
-      database: aldous
-      encoding: UTF8
 EOF
 
 microk8s kubectl -n default wait cluster/pg-cluster --for=condition=Ready --timeout=600s
@@ -98,8 +93,8 @@ PG_POD=$(microk8s kubectl -n default get pods -l cnpg.io/cluster=pg-cluster -o j
 PG_HOST=pg-cluster-rw.default.svc.cluster.local
 
 microk8s kubectl -n default exec -i "$PG_POD" -- psql -U postgres <<'EOF'
-ALTER ROLE postgres WITH PASSWORD 'postgres';
-ALTER ROLE aldous WITH PASSWORD 'aldous';
+CREATE ROLE aldous LOGIN PASSWORD 'aldous';
+CREATE DATABASE aldous OWNER aldous ENCODING 'UTF8';
 CREATE ROLE keycloak LOGIN PASSWORD 'keycloak';
 CREATE DATABASE keycloak OWNER keycloak ENCODING 'UTF8';
 CREATE ROLE kong LOGIN PASSWORD 'kong';
@@ -168,7 +163,7 @@ microk8s helm upgrade --install kong kong/kong \
   --set env.pg_database=kong \
   --set env.redis_host=redis-master.default.svc.cluster.local \
   --set env.redis_port=6379 \
-  --set-string env.plugins="bundled\,oidcify\,cors\,rate-limiting\,ip-restriction" \
+  --set-string env.plugins="bundled\,oidcify\,cors\,rate-limiting\,ip-restriction\,jwt-claims-headers" \
   --set env.pluginserver_names=oidcify \
   --set env.pluginserver_oidcify_start_cmd="/usr/local/bin/oidcify -kong-prefix /kong_prefix" \
   --set env.pluginserver_oidcify_query_cmd="/usr/local/bin/oidcify -dump"
@@ -272,32 +267,73 @@ metadata:
 username: oidc-user
 EOF
 
-microk8s kubectl exec -i keycloak-0 -- bash <<EOF
+microk8s kubectl exec -i keycloak-0 -- bash <<'EOF'
+CONFIG=/tmp/kcadm.config
+REALM=aldous
+CLIENT_ID=kong
+CLIENT_SECRET=kong-secret
+
 /opt/bitnami/keycloak/bin/kcadm.sh config credentials \
   --server http://localhost:8080 \
   --realm master \
   --user admin \
   --password changeme \
-  --config /tmp/kcadm.config
+  --config "$CONFIG"
 
-/opt/bitnami/keycloak/bin/kcadm.sh create realms --config /tmp/kcadm.config \
-  -s realm=aldous \
+/opt/bitnami/keycloak/bin/kcadm.sh create realms --config "$CONFIG" \
+  -s realm="$REALM" \
   -s enabled=true \
   -s registrationAllowed=true \
   -s sslRequired=external \
-  -s displayName="aldous"
+  -s displayName="$REALM"
 
-/opt/bitnami/keycloak/bin/kcadm.sh create clients -r aldous --config /tmp/kcadm.config \
-  -s clientId=kong \
-  -s 'redirectUris=["https://aldous.info/callback"]' \
-  -s 'webOrigins=["https://aldous.info"]' \
+/opt/bitnami/keycloak/bin/kcadm.sh create clients -r "$REALM" --config "$CONFIG" \
+  -s clientId="$CLIENT_ID" \
+  -s "redirectUris=[\"https://aldous.info/callback\"]" \
+  -s "webOrigins=[\"https://aldous.info\"]" \
   -s publicClient=false \
   -s protocol=openid-connect \
   -s clientAuthenticatorType=client-secret \
-  -s secret=kong-secret \
+  -s secret="$CLIENT_SECRET" \
   -s 'attributes."access.token.lifespan"=300' \
   -s 'attributes."sso.session.idle.timeout"=1800' \
   -s 'attributes."sso.session.max.lifespan"=36000'
+
+CLIENT_UUID=$(/opt/bitnami/keycloak/bin/kcadm.sh get clients -r "$REALM" --config "$CONFIG" -q clientId="$CLIENT_ID" --fields id --format csv --noquotes | tail -n1)
+
+/opt/bitnami/keycloak/bin/kcadm.sh create clients/$CLIENT_UUID/protocol-mappers/models -r "$REALM" --config "$CONFIG" -f - <<JSON
+{
+  "name": "email",
+  "protocol": "openid-connect",
+  "protocolMapper": "oidc-usermodel-property-mapper",
+  "consentRequired": false,
+  "config": {
+    "userinfo.token.claim": "true",
+    "user.attribute": "email",
+    "id.token.claim": "true",
+    "access.token.claim": "true",
+    "claim.name": "email",
+    "jsonType.label": "String"
+  }
+}
+JSON
+
+/opt/bitnami/keycloak/bin/kcadm.sh create clients/$CLIENT_UUID/protocol-mappers/models -r "$REALM" --config "$CONFIG" -f - <<JSON
+{
+  "name": "preferred_username",
+  "protocol": "openid-connect",
+  "protocolMapper": "oidc-usermodel-property-mapper",
+  "consentRequired": false,
+  "config": {
+    "userinfo.token.claim": "true",
+    "user.attribute": "username",
+    "id.token.claim": "true",
+    "access.token.claim": "true",
+    "claim.name": "preferred_username",
+    "jsonType.label": "String"
+  }
+}
+JSON
 EOF
 
 cat <<'EOF' | microk8s kubectl apply -f -
@@ -313,4 +349,16 @@ config:
   redirect_uri: "https://aldous.info/callback"
   insecure_skip_verify: true
   consumer_name: oidc-user
+  id_token_claims_header: X-ID-Token-Claims
+  userinfo_claims_header: X-Userinfo-Claims
+  use_userinfo: true
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: jwt-claims-to-headers
+plugin: jwt-claims-headers
+config:
+  uri_param_names:
+    - jwt
 EOF
