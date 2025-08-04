@@ -1,0 +1,17 @@
+FROM kong/kong-gateway:latest
+
+USER root
+
+RUN \
+ apt-get update \
+ && apt-get install -y --no-install-recommends wget \
+ && wget -O /tmp/oidcify.tar.gz https://github.com/hanlaur/oidcify/releases/download/v1.3.0/oidcify_1.3.0_linux_amd64.tar.gz \
+ && tar -xzf /tmp/oidcify.tar.gz -C /tmp \
+ && mv /tmp/oidcify_1.3.0_linux_amd64/oidcify /usr/local/bin/oidcify \
+ && chmod +x /usr/local/bin/oidcify \
+ && apt-get purge -y --auto-remove wget \
+ && rm -rf /var/lib/apt/lists/* /tmp/oidcify.tar.gz /tmp/oidcify_1.3.0_linux_amd64 \
+ && mkdir -p /etc/kong \
+ && touch /etc/kong/kong.license
+
+USER kong
