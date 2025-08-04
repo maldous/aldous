@@ -207,7 +207,6 @@ spec:
     - selector:
         dnsZones:
         - "aldous.info"
-        - "*.aldous.info"
       dns01:
         cloudflare:
           apiTokenSecretRef:
@@ -220,6 +219,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: aldous-tls
+  namespace: default
 spec:
   secretName: aldous-tls
   issuerRef:
