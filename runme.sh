@@ -154,6 +154,7 @@ for c in $(kubectl get crd | awk '/konghq.com/ {print $1}'); do
 done
 microk8s helm upgrade --install kong kong/kong \
   --skip-crds \
+  --set replicaCount=1 \
   --set ingressController.enabled=true \
   --set ingressController.env.KONGHQ_COM_GLOBAL_PLUGINS=true \
   --set image.repository="${IMAGE_NAME}" \
