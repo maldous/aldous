@@ -99,8 +99,7 @@ PG_HOST=pg-cluster-rw.default.svc.cluster.local
 
 microk8s kubectl -n default exec -i "$PG_POD" -- psql -U postgres <<'EOF'
 ALTER ROLE postgres WITH PASSWORD 'postgres';
-CREATE ROLE aldous LOGIN PASSWORD 'aldous';
-CREATE DATABASE aldous OWNER aldous ENCODING 'UTF8';
+ALTER ROLE aldous WITH PASSWORD 'aldous';
 CREATE ROLE keycloak LOGIN PASSWORD 'keycloak';
 CREATE DATABASE keycloak OWNER keycloak ENCODING 'UTF8';
 CREATE ROLE kong LOGIN PASSWORD 'kong';
