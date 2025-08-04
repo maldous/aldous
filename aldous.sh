@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 
-docker build -t localhost:32000/aldous:latest -f Dockerfile.aldous .
+docker buildx build \
+  --platform=linux/amd64 \
+  --cache-to=type=local,dest=.buildx-cache,mode=max \
+  --cache-from=type=local,src=.buildx-cache \
+  --load \
+  -t localhost:32000/aldous:latest \
+  -f Dockerfile.aldous \
+  .
+
 docker push localhost:32000/aldous:latest
 
 cat <<'EOF' | microk8s kubectl apply -f -
@@ -60,7 +68,9 @@ spec:
               number: 80
 EOF
 
-nohup microk8s kubectl port-forward -n minio-operator pod/microk8s-microk8s-0 9000:9000 & disown
-nohup microk8s kubectl port-forward -n default svc/redis-master 6379:6379 & disown
-nohup microk8s kubectl port-forward -n default pod/pg-cluster-1 5432:5432 & disown
-nohup microk8s kubectl port-forward -n default svc/memcached 11211:11211 & disown
+microk8s kubectl rollout restart deployment/aldous
+
+# nohup microk8s kubectl port-forward -n minio-operator pod/microk8s-microk8s-0 9000:9000 & disown
+# nohup microk8s kubectl port-forward -n default svc/redis-master 6379:6379 & disown
+# nohup microk8s kubectl port-forward -n default pod/pg-cluster-1 5432:5432 & disown
+# nohup microk8s kubectl port-forward -n default svc/memcached 11211:11211 & disown
