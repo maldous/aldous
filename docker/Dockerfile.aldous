@@ -1,5 +1,5 @@
-FROM busybox:1.36
+FROM php:8.2-cli
 WORKDIR /www
-RUN printenv | sort > index.html
+RUN echo "<?php phpinfo();" > index.php
 EXPOSE 8000
-CMD ["httpd", "-f", "-p", "8000"]
+CMD ["php", "-S", "0.0.0.0:8000", "-t", "/www"]
