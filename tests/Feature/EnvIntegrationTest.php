@@ -6,6 +6,8 @@ use Tests\TestCase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
+use Aws\Exception\AwsException;
+use Aws\Credentials\Credentials;
 use Aws\S3\S3Client;
 
 class EnvIntegrationTest extends TestCase
@@ -67,24 +69,30 @@ class EnvIntegrationTest extends TestCase
             $this->markTestSkipped('AWS SDK not installed');
         }
 
+        $endpoint = rtrim(env('AWS_ENDPOINT', 'http://127.0.0.1:9000'), '/');
+        $usePathStyle = filter_var(env('AWS_USE_PATH_STYLE_ENDPOINT', true), FILTER_VALIDATE_BOOLEAN);
         $client = new S3Client([
             'version'                 => 'latest',
-            'region'                  => env('AWS_DEFAULT_REGION'),
-            'endpoint'                => env('AWS_ENDPOINT', 'http://127.0.0.1:9000'),
-            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT'),
-            'credentials'             => [
-                'key'    => env('AWS_ACCESS_KEY_ID'),
-                'secret' => env('AWS_SECRET_ACCESS_KEY'),
-            ],
+            'region'                  => env('AWS_DEFAULT_REGION', 'us-east-1'),
+            'endpoint'                => $endpoint,
+            'use_path_style_endpoint' => $usePathStyle,
+            'credentials'             => new Credentials(
+                env('AWS_ACCESS_KEY_ID'),
+                env('AWS_SECRET_ACCESS_KEY')
+            ),
         ]);
 
         try {
-            $client->headBucket(['Bucket' => env('AWS_BUCKET')]);
-        } catch (\Exception $e) {
-            $this->markTestSkipped('S3/MinIO bucket not reachable');
+            $buckets = $client->listBuckets();
+            $bucketExists = collect($buckets['Buckets'])
+                ->pluck('Name')
+                ->contains(env('AWS_BUCKET'));
+            $this->assertTrue(
+                $bucketExists,
+                "Bucket '" . env('AWS_BUCKET') . "' not found in MinIO"
+            );
+        } catch (AwsException $e) {
+            $this->fail("S3/MinIO connection failed: " . $e->getAwsErrorMessage());
         }
-
-        $this->assertTrue(true);
     }
 }
-
