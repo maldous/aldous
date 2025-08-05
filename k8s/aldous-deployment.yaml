@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aldous
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: aldous
+  template:
+    metadata:
+      labels:
+        app: aldous
+    spec:
+      containers:
+      - name: php
+        image: localhost:32000/aldous:latest
+        ports:
+        - containerPort: 8000

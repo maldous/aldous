@@ -1,0 +1,15 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: oidc-protection
+plugin: oidcify
+config:
+  issuer: "https://auth.aldous.info/realms/aldous"
+  client_id: kong
+  client_secret: kong-secret
+  redirect_uri: "https://aldous.info/callback"
+  insecure_skip_verify: true
+  consumer_name: oidc-user
+  id_token_claims_header: X-Id-Token-Claims
+  userinfo_claims_header: X-Userinfo-Claims
+  use_userinfo: true

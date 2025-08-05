@@ -34,13 +34,10 @@ When it finishes, there will be pods for Keycloak, Kong, Memcached, Redis, Postg
 8. **Kong API Gateway**
    Add the Kong Helm repository, install or upgrade Kong pointing at the external PostgreSQL backend, expose it via LoadBalancer, and confirm that proxy and admin pods are healthy, along with the init-migrations job.
 
-9. **Certificate Management**
-   Enable Cert-Manager, apply a Let’s Encrypt staging ClusterIssuer, request a wildcard certificate for the domain and its subdomains, and wait for issuance across cert-manager pods and webhooks.
-
-10. **Keycloak Identity Provider**
+9. **Keycloak Identity Provider**
    Deploy Keycloak against the PostgreSQL cluster, expose it through Kong with TLS, set up the admin user and realm, enable self-registration, and enforce HTTPS-only access.
 
-11. **OIDC Integration**
+10. **OIDC Integration**
    Create a Kong consumer for OIDC users, apply a global plugin to enforce OpenID Connect using the configured Keycloak realm and client credentials.
 
 ## Result
@@ -53,7 +50,6 @@ After the script completes, the MicroK8s cluster has:
 - CloudNativePG PostgreSQL cluster and three dedicated databases
 - Memcached and Redis for caching workloads
 - Kong API gateway securing routes and handling traffic
-- Cert-Manager issuing wildcard TLS certificates
 - Keycloak managing user authentication and token issuance
 - A global Kong plugin enforcing OIDC on all incoming requests
 

@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: aldous
+spec:
+  selector:
+    app: aldous
+  ports:
+  - port: 80
+    targetPort: 8000
