@@ -55,7 +55,6 @@ After the script completes, the MicroK8s cluster has:
 
 ## Summary
 ```
-$ kubectl get po -A
 NAMESPACE            NAME                                            READY   STATUS
 cert-manager         cert-manager-7ff594b5bc-6qpp6                   1/1     Running
 cert-manager         cert-manager-cainjector-fd9bf654b-zrmw8         1/1     Running
