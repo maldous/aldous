@@ -1,10 +1,13 @@
-FROM kong/kong-gateway:3.7.0-alpine
+FROM kong/kong-gateway:3.11-ubuntu
 
 USER root
 
-RUN --mount=type=cache,target=/var/cache/apk \
-    apk add --no-cache wget \
- && wget -qO- https://github.com/hanlaur/oidcify/releases/download/v1.3.0/oidcify_1.3.0_linux_amd64.tar.gz | \
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && \
+    apt-get install -y --no-install-recommends wget && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN wget -qO- https://github.com/hanlaur/oidcify/releases/download/v1.3.0/oidcify_1.3.0_linux_amd64.tar.gz | \
     tar -xz -C /usr/local/bin --strip-components=1 \
  && chmod +x /usr/local/bin/oidcify \
  && mkdir -p /etc/kong \
