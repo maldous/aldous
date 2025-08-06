@@ -4,7 +4,7 @@ auth:
 master:
   persistence:
     enabled: true
-    storageClass: ceph-rbd
+    storageClass: standard
     size: 3Gi
   resources:
     limits:

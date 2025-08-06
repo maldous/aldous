@@ -1,7 +1,27 @@
-.PHONY: reset dev
+.PHONY: reset dev install help
 
 dev:
 	tilt up --stream
+
+install:
+	@echo "Installing Kind and required tools..."
+	@if ! command -v kind >/dev/null 2>&1; then \
+		echo "Installing Kind..."; \
+		curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64; \
+		chmod +x ./kind; \
+		sudo mv ./kind /usr/local/bin/kind; \
+	fi
+	@if ! command -v kubectl >/dev/null 2>&1; then \
+		echo "Installing kubectl..."; \
+		curl -LO "https://dl.k8s.io/release/$$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"; \
+		chmod +x kubectl; \
+		sudo mv kubectl /usr/local/bin/kubectl; \
+	fi
+	@if ! command -v helm >/dev/null 2>&1; then \
+		echo "Installing Helm..."; \
+		curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash; \
+	fi
+	@echo "All tools installed successfully!"
 
 reset:
 	@if [ "$(CONFIRM_RESET)" != "YES" ]; then \
@@ -9,35 +29,41 @@ reset:
 		exit 1; \
 	fi
 	@set -x; \
-	if systemctl is-active --quiet snap.microk8s.daemon-apiserver; then \
-		microk8s stop || true; \
-		mount | awk '/microk8s\/common/ {print $$3}' | xargs -r -n1 sudo umount -l || true; \
-		ip netns list | awk '{print $$1}' | xargs -r -n1 sudo ip netns delete || true; \
-	fi; \
-	snap list | grep -q microceph && snap stop microceph || true; \
-	snap list | grep -q microk8s && snap stop microk8s || true; \
-	mount | grep ceph | awk '{print $$3}' | xargs -r -n1 sudo umount -l || true; \
-	if command -v rbd >/dev/null 2>&1; then \
-		rbd device list 2>/dev/null | awk 'NR>1 {print $$4}' | xargs -r -n1 sudo rbd device unmap || true; \
-	fi; \
-	if [ -d /sys/bus/rbd/devices ]; then \
-		for dev in /sys/bus/rbd/devices/*; do \
-			[ -e "$$dev" ] || continue; \
-			echo "$$(basename "$$dev")" | sudo tee /sys/bus/rbd/remove || true; \
-		done; \
-	fi; \
-	sudo rm -f /dev/rbd* || true; \
-	sudo killall -9 systemd-udevd || true; \
-	ps -eo pid,stat,cmd | awk '$$2=="D" && $$3 ~ /udev-worker/ {print $$1}' | xargs -r sudo kill -9 || true; \
-	sudo systemctl start systemd-udevd || true; \
-	sudo snap remove microk8s --purge || true; \
-	sudo snap remove microceph --purge || true; \
-	sudo modprobe -r rbd || true; \
-	sudo modprobe -r libceph || true; \
-	sudo rm -rf /etc/ceph /var/lib/ceph /var/snap/microceph /var/snap/microk8s || true
+	echo "Stopping and removing Kind cluster..."; \
+	kind delete cluster --name aldous || true; \
+	echo "Stopping and removing registry container..."; \
+	docker stop kind-registry || true; \
+	docker rm kind-registry || true; \
+	echo "Cleaning up Docker networks..."; \
+	docker network rm kind || true; \
+	echo "Cleaning up any remaining containers..."; \
+	docker container prune -f || true; \
+	echo "Cleaning up any remaining images..."; \
+	docker image prune -f || true; \
+	echo "Reset complete!"
+
+status:
+	@echo "=== Kind Cluster Status ==="
+	@kind get clusters || echo "No Kind clusters found"
+	@echo ""
+	@echo "=== Registry Status ==="
+	@docker ps --filter name=kind-registry --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || echo "Registry not running"
+	@echo ""
+	@echo "=== Kubernetes Context ==="
+	@kubectl config current-context 2>/dev/null || echo "No kubectl context set"
+	@echo ""
+	@echo "=== Pods Status ==="
+	@kubectl get pods --all-namespaces 2>/dev/null || echo "Cannot connect to cluster"
+
+logs:
+	@echo "=== Recent Kind cluster logs ==="
+	@kind export logs --name aldous /tmp/kind-logs 2>/dev/null && echo "Logs exported to /tmp/kind-logs" || echo "No logs available"
 
 help:
 	@echo "Available targets:"
-	@echo "  dev   - Start development environment with Tilt"
-	@echo "  reset - Destroy entire cluster (CONFIRM_RESET=YES)"
-	@echo "  help  - Show this help"
+	@echo "  install - Install Kind, kubectl, and Helm"
+	@echo "  dev     - Start development environment with Tilt"
+	@echo "  reset   - Destroy Kind cluster and cleanup (CONFIRM_RESET=YES)"
+	@echo "  status  - Show cluster and component status"
+	@echo "  logs    - Export Kind cluster logs"
+	@echo "  help    - Show this help"

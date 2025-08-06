@@ -18,11 +18,13 @@ spec:
           type: RuntimeDefault
       containers:
       - name: php
-        image: localhost:32000/aldous:latest
+        image: localhost:5000/aldous:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8000
         securityContext:
           runAsNonRoot: true
+          runAsUser: 82
           seccompProfile:
             type: RuntimeDefault
         livenessProbe:

@@ -1,4 +1,4 @@
-FROM php:8.4.11-cli
+FROM php:8.4.11-cli-alpine
 RUN apk add --no-cache tzdata
 WORKDIR /app
 COPY app/ /app/

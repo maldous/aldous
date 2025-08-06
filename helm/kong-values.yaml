@@ -4,8 +4,8 @@ ingressController:
   env:
     KONGHQ_COM_GLOBAL_PLUGINS: true
 image:
-  repository: localhost:32000/kong-oidc
-  tag: "3.7.0"
+  repository: localhost:5000/kong-oidc
+  tag: "3.11-ubuntu"
 proxy:
   type: LoadBalancer
   http:
@@ -17,10 +17,22 @@ proxy:
   real_ip_recursive: true
 admin:
   enabled: false
+  http:
+    enabled: false
 env:
   database: postgres
   pg_host: pg-cluster-rw.default.svc.cluster.local
-  pg_database: kong
+  pg_database: app
+  pg_user:
+    valueFrom:
+      secretKeyRef:
+        name: pg-cluster-app
+        key: username
+  pg_password:
+    valueFrom:
+      secretKeyRef:
+        name: pg-cluster-app
+        key: password
   redis_host: "redis-master.default.svc.cluster.local"
   redis_port: 6379
   plugins: "bundled,oidcify,cors,rate-limiting,ip-restriction"
@@ -31,5 +43,3 @@ env:
   KONG_REAL_IP_HEADER: "X-Forwarded-For"
   KONG_REAL_IP_RECURSIVE: "on"
   KONG_HEADERS_UPSTREAM: "X-Forwarded-Proto:https"
-secretRefs:
-  - name: kong-database

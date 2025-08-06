@@ -8,14 +8,16 @@ ingress:
   existingSecret: cloudflare-origin-cert
 auth:
   adminUser: admin
-  adminPassword: changeme
+  existingSecret: keycloak-admin
+  passwordSecretKey: admin-password
 postgresql:
   enabled: false
 externalDatabase:
   host: "pg-cluster-rw.default.svc.cluster.local"
-  user: keycloak
-  password: keycloak
-  database: keycloak
+  existingSecret: "pg-cluster-app"
+  existingSecretUserKey: "username"
+  existingSecretPasswordKey: "password"
+  database: app
 cache:
   enabled: true
   type: redis
@@ -24,19 +26,31 @@ cache:
 persistence:
   enabled: true
   size: 5Gi
-  storageClass: ceph-rbd
-extraEnv:
+  storageClass: standard
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: http
+  initialDelaySeconds: 300
+  timeoutSeconds: 5
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: http
+  initialDelaySeconds: 30
+  timeoutSeconds: 1
+extraEnvVars:
   - name: KC_SPI_STORAGE_S3_BUCKET
     value: keycloak-bucket
   - name: KC_SPI_STORAGE_S3_ENDPOINT
-    value: "http://microk8s-hl.minio-operator.svc.cluster.local:9000"
+    value: "http://minio.default.svc.cluster.local:9000"
   - name: KC_SPI_STORAGE_S3_ACCESSKEY
     valueFrom:
       secretKeyRef:
-        name: microk8s-user-1
-        key: CONSOLE_ACCESS_KEY
+        name: minio-root-credentials
+        key: root-user
   - name: KC_SPI_STORAGE_S3_SECRETKEY
     valueFrom:
       secretKeyRef:
-        name: microk8s-user-1
-        key: CONSOLE_SECRET_KEY
+        name: minio-root-credentials
+        key: root-password

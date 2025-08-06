@@ -1,7 +1,6 @@
-load('ext://git_resource', 'git_checkout')
 load('ext://helm_remote', 'helm_remote')
 
-config.define_string('metallb_range')
+config.define_string('registry_port')
 config.define_string('pg_host')
 config.define_string('minio_host')
 config.define_string('kong_image_tag')
@@ -12,159 +11,148 @@ cfg = config.parse()
 # Get git commit SHA for image tagging
 commit_sha = str(local('git rev-parse --short HEAD')).strip()
 
-# Central image map
+# Central image map - using localhost:5000 for Kind registry
 images = {
     "kong": {
-        "name": "localhost:32000/kong-oidc",
-        "tag": cfg.get("kong_image_tag") or "3.7.0"
+        "name": "localhost:5000/kong-oidc",
+        "tag": cfg.get("kong_image_tag") or "3.11-ubuntu"
     },
     "aldous": {
-        "name": "localhost:32000/aldous", 
+        "name": "localhost:5000/aldous", 
         "tag": cfg.get("aldous_image_tag") or "latest"
     }
 }
 
 env = {
-    "METALLB_RANGE": cfg.get("metallb_range") or "192.168.1.240-192.168.1.250",
+    "REGISTRY_PORT": cfg.get("registry_port") or "5000",
     "PG_HOST":       cfg.get("pg_host")       or "pg-cluster-rw.default.svc.cluster.local",
-    "MINIO_HOST":    cfg.get("minio_host")    or "microk8s-hl.minio-operator.svc.cluster.local",
+    "MINIO_HOST":    cfg.get("minio_host")    or "minio.default.svc.cluster.local",
 }
 
-# Generic builder helper
-def build_image(name, context, dockerfile, sync_paths, build_args=None):
-    ref = images[name]['name'] + ':' + images[name]['tag']
-    docker_build(ref,
-        context=context,
-        dockerfile=dockerfile,
-        build_args=build_args or {},
-        live_update=[sync(src, dst) for src, dst in sync_paths]
-    )
-    return ref
+# Build images with live updates - moved after registry setup
+# Images will be built by Tilt automatically when registry is ready
 
-# Build images with improved caching and live updates
-# Kong image build moved to after registry setup
-
-aldous_ref = docker_build(
-    images['aldous']['name'] + ':' + images['aldous']['tag'],
-    context=".",
-    dockerfile="docker/Dockerfile.aldous",
-    live_update=[
-        sync("app/", "/app/")
-    ]
-)
-
-# Template aldous deployment with dynamic image tag
-# Note: Image tag substitution handled by deployment itself
-k8s_yaml('k8s/aldous-deployment.yaml')
-
+# Kubernetes manifests
 k8s_yaml([
-    'k8s/aldous-service.yaml',
+    'k8s/aldous-deployment.yaml',
+    'k8s/aldous-service.yaml', 
     'k8s/aldous-ingress.yaml',
+    'k8s/pg-cluster.yaml',
+    'k8s/minio-secret.yaml',
     'k8s/oidc-protection.yaml',
     'k8s/oidc-user.yaml',
-    'k8s/oidc-client-sealed-secret.yaml',
-    'k8s/cloudflare-origin-cert-sealed-secret.yaml',
-    'k8s/kong-database-sealed-secret.yaml',
+    'k8s/cloudflare-origin-cert-secret.yaml',
 ])
 
-
-
-# Infrastructure setup - all handled by Tilt
+# Infrastructure setup for Kind
 local_resource(
-  'microk8s_setup',
-  cmd='sudo snap install microk8s --classic && sudo microk8s status --wait-ready',
-  trigger_mode=TRIGGER_MODE_AUTO,
-)
-
-local_resource(
-  'microk8s_config',
-  cmd='sudo microk8s config > ~/.kube/config',
-  resource_deps=['microk8s_setup'],
-  trigger_mode=TRIGGER_MODE_AUTO,
-)
-
-local_resource(
-  'microk8s_addons',
-  cmd='sudo microk8s enable community rook-ceph cloudnative-pg metallb:' + env["METALLB_RANGE"],
-  resource_deps=['microk8s_config'],
-  trigger_mode=TRIGGER_MODE_AUTO,
-)
-
-local_resource(
-  'ceph_setup',
-  cmd='sudo snap install microceph --classic || true && sudo snap restart microceph && sleep 5 && sudo microceph cluster bootstrap && sudo microceph disk add loop,4G,3 && sleep 10 && until sudo ceph -s | grep -q "HEALTH_OK"; do sleep 1; done && CONF=$(sudo find /var/snap/microceph -name ceph.conf | head -n1) && KEYRING=$(sudo find /var/snap/microceph -name ceph.client.admin.keyring | head -n1) && sudo microk8s connect-external-ceph --ceph-conf "$CONF" --keyring "$KEYRING" --rbd-pool microk8s-rbd0 && until kubectl get pods -n rook-ceph --no-headers 2>/dev/null | grep -q .; do sleep 5; done && kubectl -n rook-ceph wait --for=condition=Ready pods --all --timeout=600s',
-  resource_deps=['microk8s_addons'],
+  'kind_cluster',
+  cmd='kind create cluster --config kind-config.yaml --wait 5m || true',
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
 local_resource(
   'registry_setup',
-  cmd='sudo microk8s enable registry:size=20Gi && until kubectl get pods -n container-registry --no-headers 2>/dev/null | grep -q Running; do echo "Waiting for registry pod..."; sleep 5; done',
-  resource_deps=['ceph_setup'],
+  cmd='docker rm -f kind-registry 2>/dev/null || true && docker run -d --restart=always --name kind-registry --network kind registry:2 && until docker exec aldous-control-plane curl -f http://kind-registry:5000/v2/ 2>/dev/null; do echo "Waiting for registry..."; sleep 2; done',
+  resource_deps=['kind_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
-# Build Kong image after registry is ready
 local_resource(
-  'kong_build',
-  cmd='until curl -f http://localhost:32000/v2/ 2>/dev/null; do echo "Waiting for registry..."; sleep 5; done && docker build -t localhost:32000/kong-oidc:3.7.0 -f docker/Dockerfile.kong . && docker push localhost:32000/kong-oidc:3.7.0',
+  'metallb_setup',
+  cmd='kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.12/config/manifests/metallb-native.yaml && kubectl wait --namespace metallb-system --for=condition=ready pod --selector=app=metallb --timeout=300s',
+  resource_deps=['kind_cluster'],
+  trigger_mode=TRIGGER_MODE_AUTO,
+)
+
+local_resource(
+  'metallb_config',
+  cmd='kubectl apply -f - <<EOF\napiVersion: metallb.io/v1beta1\nkind: IPAddressPool\nmetadata:\n  name: example\n  namespace: metallb-system\nspec:\n  addresses:\n  - 192.168.1.240-192.168.1.250\n---\napiVersion: metallb.io/v1beta1\nkind: L2Advertisement\nmetadata:\n  name: empty\n  namespace: metallb-system\nEOF',
+  resource_deps=['metallb_setup'],
+  trigger_mode=TRIGGER_MODE_AUTO,
+)
+
+local_resource(
+  'cloudnative_pg',
+  cmd='kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml && kubectl wait --namespace cnpg-system --for=condition=ready pod --selector=app.kubernetes.io/name=cloudnative-pg --timeout=300s',
+  resource_deps=['kind_cluster'],
+  trigger_mode=TRIGGER_MODE_AUTO,
+)
+
+local_resource(
+  'postgres_cluster',
+  cmd='kubectl apply -f k8s/pg-cluster.yaml && kubectl wait --for=condition=ready cluster/pg-cluster --timeout=300s',
+  resource_deps=['cloudnative_pg'],
+  trigger_mode=TRIGGER_MODE_AUTO,
+)
+
+local_resource(
+  'keycloak_admin_secret',
+  cmd='kubectl get secret keycloak-admin >/dev/null 2>&1 || kubectl create secret generic keycloak-admin --from-literal=admin-password=$(openssl rand -base64 32)',
+  resource_deps=['kind_cluster'],
+  trigger_mode=TRIGGER_MODE_AUTO,
+)
+
+local_resource(
+  'oidc_client_secret',
+  cmd='kubectl get secret oidc-client-secret >/dev/null 2>&1 || kubectl create secret generic oidc-client-secret --from-literal=client-secret=$(openssl rand -base64 32)',
+  resource_deps=['kind_cluster'],
+  trigger_mode=TRIGGER_MODE_AUTO,
+)
+
+# Build images after registry is ready
+local_resource(
+  'build_images',
+  cmd='docker build -t ' + images['kong']['name'] + ':' + images['kong']['tag'] + ' -f docker/Dockerfile.kong . && kind load docker-image ' + images['kong']['name'] + ':' + images['kong']['tag'] + ' --name aldous && docker build -t ' + images['aldous']['name'] + ':' + images['aldous']['tag'] + ' -f docker/Dockerfile.aldous . && kind load docker-image ' + images['aldous']['name'] + ':' + images['aldous']['tag'] + ' --name aldous',
   resource_deps=['registry_setup'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
+# Note: docker_build calls moved to local_resource to ensure proper dependency ordering
+
+# Helm deployments with explicit triggers
 local_resource(
-  'minio_setup', 
-  cmd='sudo microk8s enable minio',
-  resource_deps=['ceph_setup'],
+  'deploy_minio',
+  cmd='helm repo add minio https://charts.min.io/ && helm repo update && helm upgrade --install minio minio/minio -f helm/minio-values.yaml',
+  resource_deps=['postgres_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
-# Kong CRDs will be installed by helm chart
+local_resource(
+  'deploy_redis',
+  cmd='helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update && helm upgrade --install redis bitnami/redis -f helm/redis-values.yaml',
+  resource_deps=['postgres_cluster'],
+  trigger_mode=TRIGGER_MODE_AUTO,
+)
 
+local_resource(
+  'deploy_memcached',
+  cmd='helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update && helm upgrade --install memcached bitnami/memcached -f helm/memcached-values.yaml',
+  resource_deps=['postgres_cluster'],
+  trigger_mode=TRIGGER_MODE_AUTO,
+)
 
-# Helm deployments using helm_remote for remote charts
-helm_remote('kong',
-    repo_name='kong',
-    repo_url='https://charts.konghq.com',
-    values=['helm/kong-values.yaml'],
-    set=[
-        'image.repository=' + images['kong']['name'],
-        'image.tag=' + images['kong']['tag'],
-        'env.pg_host=' + env['PG_HOST']
-    ])
+local_resource(
+  'deploy_kong',
+  cmd='helm repo add kong https://charts.konghq.com && helm repo update && helm upgrade --install kong kong/kong -f helm/kong-values.yaml --set image.repository=' + images['kong']['name'] + ' --set image.tag=' + images['kong']['tag'] + ' --set env.pg_host=' + env['PG_HOST'] + ' --set env.pg_database=app',
+  resource_deps=['postgres_cluster', 'metallb_config', 'build_images', 'oidc_client_secret'],
+  trigger_mode=TRIGGER_MODE_AUTO,
+)
 
-helm_remote('keycloak',
-    repo_name='bitnami', 
-    repo_url='https://charts.bitnami.com/bitnami',
-    values=['helm/keycloak-values.yaml'],
-    set=[
-        'externalDatabase.host=' + env['PG_HOST'],
-        'extraEnv[1].value=http://' + env['MINIO_HOST'] + ':9000'
-    ])
+local_resource(
+  'deploy_keycloak',
+  cmd='helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update && helm upgrade --install keycloak bitnami/keycloak -f helm/keycloak-values.yaml --set externalDatabase.host=' + env['PG_HOST'] + ' --set extraEnv[1].value=http://' + env['MINIO_HOST'] + ':9000',
+  resource_deps=['deploy_minio', 'keycloak_admin_secret'],
+  trigger_mode=TRIGGER_MODE_AUTO,
+)
 
-helm_remote('redis',
-    repo_name='bitnami',
-    repo_url='https://charts.bitnami.com/bitnami', 
-    values=['helm/redis-values.yaml'])
+# Aldous k8s resource with port forwarding
+k8s_resource('aldous', port_forwards=['8000:80'], resource_deps=['build_images', 'deploy_kong'])
 
-helm_remote('memcached',
-    repo_name='bitnami',
-    repo_url='https://charts.bitnami.com/bitnami',
-    values=['helm/memcached-values.yaml'])
-
-
-
-# Flatten dependency graph using Helm releases and k8s resources
-k8s_resource('kong-kong', resource_deps=['kong_build'])
-k8s_resource('keycloak', resource_deps=['minio_setup'])
-k8s_resource('aldous', port_forwards=['8000:8000'], resource_deps=['kong-kong', 'registry_setup'])
-
-# Port forwarding handled by k8s_resource above
 # Ingress check - manual trigger only
 local_resource(
     'ingress_check',
-    cmd='bash -c "until curl -sf https://aldous.info; do sleep 5; done && echo ingress OK"',
+    cmd='bash -c "until curl -sf http://localhost:80/; do sleep 5; done && echo ingress OK"',
     resource_deps=['aldous'],
-    env=env,
     trigger_mode=TRIGGER_MODE_MANUAL,
 )
