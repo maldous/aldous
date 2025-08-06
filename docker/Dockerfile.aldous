@@ -1,5 +1,7 @@
-FROM php:8.2-cli
-WORKDIR /www
-RUN echo "<?php phpinfo();" > index.php
+FROM php:8.2-cli-alpine
+RUN apk add --no-cache tzdata
+WORKDIR /app
+COPY app/ /app/
 EXPOSE 8000
-CMD ["php", "-S", "0.0.0.0:8000", "-t", "/www"]
+USER www-data
+CMD ["php", "-S", "0.0.0.0:8000", "-t", "/app"]

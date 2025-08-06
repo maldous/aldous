@@ -1,16 +1,12 @@
-FROM kong/kong-gateway:latest
+FROM kong/kong-gateway:3.7.0-alpine
 
 USER root
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends wget unzip \
- \
- && wget -O /tmp/oidcify.tar.gz https://github.com/hanlaur/oidcify/releases/download/v1.3.0/oidcify_1.3.0_linux_amd64.tar.gz \
- && tar -xzf /tmp/oidcify.tar.gz -C /tmp \
- && mv /tmp/oidcify_1.3.0_linux_amd64/oidcify /usr/local/bin/oidcify \
+RUN --mount=type=cache,target=/var/cache/apk \
+    apk add --no-cache wget \
+ && wget -qO- https://github.com/hanlaur/oidcify/releases/download/v1.3.0/oidcify_1.3.0_linux_amd64.tar.gz | \
+    tar -xz -C /usr/local/bin --strip-components=1 \
  && chmod +x /usr/local/bin/oidcify \
- && apt-get purge -y --auto-remove wget unzip \
- && rm -rf /var/lib/apt/lists/* /tmp/* \
  && mkdir -p /etc/kong \
  && touch /etc/kong/kong.license
 
