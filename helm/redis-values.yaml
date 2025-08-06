@@ -1,0 +1,14 @@
+architecture: standalone
+auth:
+  enabled: false
+master:
+  persistence:
+    enabled: true
+    storageClass: ceph-rbd
+    size: 3Gi
+  resources:
+    limits:
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi

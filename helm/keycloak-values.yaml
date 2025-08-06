@@ -5,7 +5,7 @@ ingress:
   ingressClassName: kong
   hostname: auth.aldous.info
   tls: true
-  existingSecret: aldous-tls
+  existingSecret: cloudflare-origin-cert
 auth:
   adminUser: admin
   adminPassword: changeme
