@@ -1,0 +1,49 @@
+Tiltfile is functional, but here are a few suggestions to streamline and speed up the workflow:
+
+* **Use `build_args`** so your images pick up the same config you’re passing into Tilt, and avoid full rebuilds when only config changes:
+
+  docker_build(
+    env["IMAGE_NAME"] + ":" + env["IMAGE_TAG"],
+    context=".",
+    dockerfile="docker/Dockerfile.kong",
+    build_args={
+      "KONG_IMAGE_NAME": cfg.get("kong_image_name"),
+      "KONG_IMAGE_TAG":  cfg.get("kong_image_tag"),
+    },
+    live_update=[
+      sync("docker/", "/workspace/")  # sync your source instead of only the Dockerfile
+    ]
+  ```
+
+* **Leverage `fast_build` / `live_update`** for your app container instead of full `docker_build` on every change:
+
+  fast_build(
+    "localhost:32000/aldous:latest",
+    base_image="python:3.11-slim",
+    sync=["aldous/ -> /app/"],
+    run="pip install -r /app/requirements.txt && python /app/main.py"
+  )
+
+* **Use `port_forwards` on your k8s resources** rather than a separate `local_resource` script:
+
+  k8s_resource(
+    "aldous",
+    port_forwards=["8000:8000"],
+    resource_deps=["aldous_deploy"]
+  )
+
+* **Replace manual `kubectl apply` of CRDs and scripts with Tilt’s built-in helpers** or the Helm extension:
+
+  k8s_yaml("https://raw.githubusercontent.com/Kong/charts/main/charts/kong/crds/custom-resource-definitions.yaml")
+  helm("keycloak", "bitnami/keycloak", values=["helm/values-keycloak.yaml"])
+
+* **Flatten your dependency graph** by declaring dependencies on the k8s resources themselves, rather than chaining script names:
+
+  ```python
+  k8s_resource("pg-cluster", resource_deps=["ceph"])
+  k8s_resource("minio-operator", resource_deps=["ceph"])
+  ```
+
+These changes will reduce rebuild times, make your dependency graph clearer, and take full advantage of Tilt’s incremental-build and port-forward features.
+
+Note, these are all just suggestions and the example are incomplete. review all code to fully implement the solution.

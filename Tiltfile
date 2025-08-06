@@ -1,129 +1,92 @@
-# Welcome to Tilt!
-#   To get you started as quickly as possible, we have created a
-#   starter Tiltfile for you.
-#
-#   Uncomment, modify, and delete any commands as needed for your
-#   project's configuration.
+config.define_string('metallb_range')
+config.define_string('pg_host')
+config.define_string('minio_host')
+config.define_string('kong_image_name')
+config.define_string('kong_image_tag')
+config.define_string('aldous_image_name')
+config.define_string('aldous_image_tag')
 
+cfg = config.parse()
 
-# Output diagnostic messages
-#   You can print log messages, warnings, and fatal errors, which will
-#   appear in the (Tiltfile) resource in the web UI. Tiltfiles support
-#   multiline strings and common string operations such as formatting.
-#
-#   More info: https://docs.tilt.dev/api.html#api.warn
-print("""
------------------------------------------------------------------
-✨ Hello Tilt! This appears in the (Tiltfile) pane whenever Tilt
-   evaluates this file.
------------------------------------------------------------------
-""".strip())
-warn('ℹ️ Open {tiltfile_path} in your favorite editor to get started.'.format(
-    tiltfile_path=config.main_path))
+env = {
+    "METALLB_RANGE": cfg.get("metallb_range") or "192.168.1.240-192.168.1.250",
+    "PG_HOST":       cfg.get("pg_host")       or "pg-cluster-rw.default.svc.cluster.local",
+    "MINIO_HOST":    cfg.get("minio_host")    or "microk8s-hl.minio-operator.svc.cluster.local",
+    "IMAGE_NAME":    cfg.get("kong_image_name") or "localhost:32000/kong-oidc",
+    "IMAGE_TAG":     cfg.get("kong_image_tag")  or "3.7.0",
+}
 
+docker_build(
+    'localhost:32000/kong-oidc:3.7.0',
+    context='.',
+    dockerfile='docker/Dockerfile.kong',
+    live_update=[
+        sync('docker/Dockerfile.kong', '/tmp/dockerfile-kong')
+    ]
+)
 
-# Build Docker image
-#   Tilt will automatically associate image builds with the resource(s)
-#   that reference them (e.g. via Kubernetes or Docker Compose YAML).
-#
-#   More info: https://docs.tilt.dev/api.html#api.docker_build
-#
-# docker_build('registry.example.com/my-image',
-#              context='.',
-#              # (Optional) Use a custom Dockerfile path
-#              dockerfile='./deploy/app.dockerfile',
-#              # (Optional) Filter the paths used in the build
-#              only=['./app'],
-#              # (Recommended) Updating a running container in-place
-#              # https://docs.tilt.dev/live_update_reference.html
-#              live_update=[
-#                 # Sync files from host to container
-#                 sync('./app', '/src/'),
-#                 # Execute commands inside the container when certain
-#                 # paths change
-#                 run('/src/codegen.sh', trigger=['./app/api'])
-#              ]
-# )
+docker_build(
+    'localhost:32000/aldous:latest',
+    context='.',
+    dockerfile='docker/Dockerfile.aldous',
+    live_update=[
+        sync('docker/Dockerfile.aldous', '/tmp/dockerfile-aldous')
+    ]
+)
 
+k8s_yaml([
+    'k8s/aldous-deployment.yaml',
+    'k8s/aldous-service.yaml',
+    'k8s/aldous-ingress.yaml',
+    'k8s/pg-cluster.yaml',
+    'k8s/oidc-protection.yaml',
+    'k8s/oidc-user.yaml',
+    'k8s/kong-manifest.yaml',
+    'k8s/keycloak-manifest.yaml',
+    'k8s/memcached-manifest.yaml',
+    'k8s/redis-manifest.yaml',
+])
 
-# Apply Kubernetes manifests
-#   Tilt will build & push any necessary images, re-deploying your
-#   resources as they change.
-#
-#   More info: https://docs.tilt.dev/api.html#api.k8s_yaml
-#
-# k8s_yaml(['k8s/deployment.yaml', 'k8s/service.yaml'])
+def script_res(name, path, deps_on=[], manual=False, allow_parallel=False, script_env=None):
+    local_resource(
+        name          = name,
+        cmd           = "sudo -E bash " + path,
+        deps          = [path],
+        resource_deps = deps_on,
+        env           = script_env or env,
+        trigger_mode  = TRIGGER_MODE_MANUAL if manual else TRIGGER_MODE_AUTO,
+        allow_parallel= allow_parallel,
+    )
 
+script_res('reset',              'scripts/reset.sh',              manual=True)
+script_res('install',            'scripts/install.sh',            deps_on=['reset'])
 
-# Customize a Kubernetes resource
-#   By default, Kubernetes resource names are automatically assigned
-#   based on objects in the YAML manifests, e.g. Deployment name.
-#
-#   Tilt strives for sane defaults, so calling k8s_resource is
-#   optional, and you only need to pass the arguments you want to
-#   override.
-#
-#   More info: https://docs.tilt.dev/api.html#api.k8s_resource
-#
-# k8s_resource('my-deployment',
-#              # map one or more local ports to ports on your Pod
-#              port_forwards=['5000:8080'],
-#              # change whether the resource is started by default
-#              auto_init=False,
-#              # control whether the resource automatically updates
-#              trigger_mode=TRIGGER_MODE_MANUAL
-# )
+local_resource(
+    'kong_crds',
+    cmd='kubectl apply -f https://raw.githubusercontent.com/Kong/charts/main/charts/kong/crds/custom-resource-definitions.yaml',
+    deps=[],
+    resource_deps=['install'],
+    trigger_mode=TRIGGER_MODE_AUTO,
+)
+script_res('ceph',               'scripts/ceph.sh',               deps_on=['install'])
+script_res('registry',           'scripts/registry.sh',           deps_on=['ceph'])
+script_res('minio',              'scripts/minio.sh',              deps_on=['ceph'])
+script_res('pg',                 'scripts/pg.sh',                 deps_on=['ceph'])
+script_res('memcache_redis',     'scripts/memcache-redis.sh',     deps_on=['ceph'])
+script_res('kong_deploy',        'scripts/kong.sh',               deps_on=['pg', 'registry', 'kong_crds'])
+script_res('keycloak_install',   'scripts/keycloak-install.sh',   deps_on=['pg', 'minio', 'memcache_redis'])
+script_res('keycloak_configure', 'scripts/keycloak-configure.sh', deps_on=['keycloak_install'])
+script_res('aldous_deploy',      'scripts/aldous.sh',             deps_on=['kong_deploy', 'registry'])
+script_res('port_forward',       'scripts/forward.sh',            deps_on=['aldous_deploy'], manual=True)
 
+k8s_resource('kong-kong', resource_deps=['kong_deploy'])
+k8s_resource('aldous', port_forwards='8000:8000', resource_deps=['aldous_deploy'])
 
-# Run local commands
-#   Local commands can be helpful for one-time tasks like installing
-#   project prerequisites. They can also manage long-lived processes
-#   for non-containerized services or dependencies.
-#
-#   More info: https://docs.tilt.dev/local_resource.html
-#
-# local_resource('install-helm',
-#                cmd='which helm > /dev/null || brew install helm',
-#                # `cmd_bat`, when present, is used instead of `cmd` on Windows.
-#                cmd_bat=[
-#                    'powershell.exe',
-#                    '-Noninteractive',
-#                    '-Command',
-#                    '& {if (!(Get-Command helm -ErrorAction SilentlyContinue)) {scoop install helm}}'
-#                ]
-# )
+local_resource(
+    'ingress_check',
+    cmd          = "bash -c 'until curl -sf https://aldous.info; do sleep 5; done && echo ingress OK'",
+    resource_deps=['aldous_deploy'],
+    env          = env,
+    trigger_mode = TRIGGER_MODE_MANUAL,
+)
 
-
-# Extensions are open-source, pre-packaged functions that extend Tilt
-#
-#   More info: https://github.com/tilt-dev/tilt-extensions
-#
-load('ext://git_resource', 'git_checkout')
-
-
-# Organize logic into functions
-#   Tiltfiles are written in Starlark, a Python-inspired language, so
-#   you can use functions, conditionals, loops, and more.
-#
-#   More info: https://docs.tilt.dev/tiltfile_concepts.html
-#
-def tilt_demo():
-    # Tilt provides many useful portable built-ins
-    # https://docs.tilt.dev/api.html#modules.os.path.exists
-    if os.path.exists('tilt-avatars/Tiltfile'):
-        # It's possible to load other Tiltfiles to further organize
-        # your logic in large projects
-        # https://docs.tilt.dev/multiple_repos.html
-        load_dynamic('tilt-avatars/Tiltfile')
-    watch_file('tilt-avatars/Tiltfile')
-    git_checkout('https://github.com/tilt-dev/tilt-avatars.git',
-                 checkout_dir='tilt-avatars')
-
-
-# Edit your Tiltfile without restarting Tilt
-#   While running `tilt up`, Tilt watches the Tiltfile on disk and
-#   automatically re-evaluates it on change.
-#
-#   To see it in action, try uncommenting the following line with
-#   Tilt running.
-# tilt_demo()

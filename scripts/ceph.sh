@@ -26,5 +26,13 @@ until ceph -s | grep -q "volumes: 1/1 healthy"; do sleep 1; done
 CONF=$(find /var/snap/microceph -name ceph.conf | head -n1)
 KEYRING=$(find /var/snap/microceph -name ceph.client.admin.keyring | head -n1)
 microk8s connect-external-ceph --ceph-conf "$CONF" --keyring "$KEYRING" --rbd-pool microk8s-rbd0
-kubectl -n rook-ceph wait --for=condition=Ready pods --all --timeout=600s
+# Wait for rook-ceph namespace to have pods before waiting for them to be ready
+echo "Waiting for rook-ceph pods to be created..."
+until kubectl get pods -n rook-ceph --no-headers 2>/dev/null | grep -q .; do 
+  echo "No pods found in rook-ceph namespace yet, waiting..."
+  sleep 5
+done
 
+# Now wait for all pods to be ready
+echo "Waiting for rook-ceph pods to be ready..."
+kubectl -n rook-ceph wait --for=condition=Ready pods --all --timeout=600s
