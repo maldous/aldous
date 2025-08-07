@@ -35,6 +35,11 @@ env:
         key: password
   redis_host: "redis-master.default.svc.cluster.local"
   redis_port: 6379
+  oidc_client_secret:
+    valueFrom:
+      secretKeyRef:
+        name: oidc-client-secret
+        key: client-secret
   plugins: "bundled,oidcify,cors,rate-limiting,ip-restriction"
   pluginserver_names: oidcify
   pluginserver_oidcify_start_cmd: "/usr/local/bin/oidcify -kong-prefix /kong_prefix"
