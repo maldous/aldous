@@ -45,23 +45,23 @@ k8s_yaml([
 ])
 
 # Infrastructure setup for Kind
-local_resource(
-  'kind_cluster',
-  cmd='kind create cluster --config kind-config.yaml --wait 5m || true',
-  trigger_mode=TRIGGER_MODE_AUTO,
-)
+#local_resource(
+#  'kind_cluster',
+#  cmd='kind create cluster --config kind-config.yaml --wait 5m || true',
+#  trigger_mode=TRIGGER_MODE_AUTO,
+#)
 
 local_resource(
   'registry_setup',
   cmd='docker rm -f kind-registry 2>/dev/null || true && docker run -d --restart=always --name kind-registry --network kind registry:2 && until docker exec aldous-control-plane curl -f http://kind-registry:5000/v2/ 2>/dev/null; do echo "Waiting for registry..."; sleep 2; done',
-  resource_deps=['kind_cluster'],
+#  resource_deps=['kind_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
 local_resource(
   'metallb_setup',
   cmd='kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.12/config/manifests/metallb-native.yaml && kubectl wait --namespace metallb-system --for=condition=ready pod --selector=app=metallb --timeout=300s',
-  resource_deps=['kind_cluster'],
+#  resource_deps=['kind_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
@@ -75,7 +75,7 @@ local_resource(
 local_resource(
   'cloudnative_pg',
   cmd='kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml && kubectl wait --namespace cnpg-system --for=condition=ready pod --selector=app.kubernetes.io/name=cloudnative-pg --timeout=300s',
-  resource_deps=['kind_cluster'],
+#  resource_deps=['kind_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
@@ -89,21 +89,21 @@ local_resource(
 local_resource(
   'keycloak_admin_secret',
   cmd='kubectl get secret keycloak-admin >/dev/null 2>&1 || kubectl create secret generic keycloak-admin --from-literal=admin-password=$(openssl rand -base64 32)',
-  resource_deps=['kind_cluster'],
+#  resource_deps=['kind_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
 local_resource(
   'oidc_client_secret',
   cmd='kubectl get secret oidc-client-secret >/dev/null 2>&1 || kubectl create secret generic oidc-client-secret --from-literal=client-secret=$(openssl rand -base64 32)',
-  resource_deps=['kind_cluster'],
+#  resource_deps=['kind_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
 local_resource(
   'minio_secret',
   cmd='kubectl apply -f k8s/minio-secret.yaml',
-  resource_deps=['kind_cluster'],
+#  resource_deps=['kind_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
