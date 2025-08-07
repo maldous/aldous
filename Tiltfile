@@ -38,6 +38,7 @@ k8s_yaml([
     'k8s/aldous-service.yaml', 
     'k8s/aldous-ingress.yaml',
     'k8s/pg-cluster.yaml',
+
     'k8s/minio-secret.yaml',
     'k8s/oidc-protection.yaml',
     'k8s/oidc-user.yaml',
