@@ -11,6 +11,12 @@ cfg = config.parse()
 # Get git commit SHA for image tagging
 commit_sha = str(local('git rev-parse --short HEAD')).strip()
 
+network_iface = str(local("ip -o -4 route show to default | grep -v docker | head -1 | awk '{print $5}'")).strip()
+host_ip = str(local("ip -4 addr show " + network_iface + " | grep inet | grep -v 127 | head -1 | awk '{print $2}' | cut -d/ -f1")).strip()
+
+metallb_ip = host_ip
+metallb_range = host_ip + '-' + host_ip
+
 # Central image map - using localhost:5000 for Kind registry
 images = {
     "kong": {
@@ -66,8 +72,8 @@ local_resource(
 )
 
 local_resource(
-  'metallb_config',
-  cmd='kubectl apply -f - <<EOF\napiVersion: metallb.io/v1beta1\nkind: IPAddressPool\nmetadata:\n  name: example\n  namespace: metallb-system\nspec:\n  addresses:\n  - 192.168.1.240-192.168.1.250\n---\napiVersion: metallb.io/v1beta1\nkind: L2Advertisement\nmetadata:\n  name: empty\n  namespace: metallb-system\nEOF',
+  'metallb_network_setup',
+  cmd='sudo ip addr add ' + metallb_ip + '/32 dev ' + network_iface + ' || true && kubectl apply -f - <<EOF\napiVersion: metallb.io/v1beta1\nkind: IPAddressPool\nmetadata:\n  name: example\n  namespace: metallb-system\nspec:\n  addresses:\n  - ' + metallb_range + '\n---\napiVersion: metallb.io/v1beta1\nkind: L2Advertisement\nmetadata:\n  name: empty\n  namespace: metallb-system\nEOF',
   resource_deps=['metallb_setup'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
@@ -142,7 +148,7 @@ local_resource(
 local_resource(
   'deploy_kong',
   cmd='helm repo add kong https://charts.konghq.com && helm repo update && helm upgrade --install kong kong/kong -f helm/kong-values.yaml --set image.repository=' + images['kong']['name'] + ' --set image.tag=' + images['kong']['tag'] + ' --set env.pg_host=' + env['PG_HOST'] + ' --set env.pg_database=app',
-  resource_deps=['postgres_cluster', 'metallb_config', 'build_images', 'oidc_client_secret'],
+  resource_deps=['postgres_cluster', 'metallb_network_setup', 'build_images', 'oidc_client_secret'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 

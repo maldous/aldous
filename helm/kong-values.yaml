@@ -7,7 +7,7 @@ image:
   repository: localhost:5000/kong-oidc
   tag: "3.11-ubuntu"
 proxy:
-  type: NodePort
+  type: LoadBalancer
   http:
     enabled: false
   tls:
