@@ -27,6 +27,14 @@ persistence:
   enabled: true
   size: 5Gi
   storageClass: standard
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: http
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
 extraEnvVars:
   - name: KC_SPI_STORAGE_S3_BUCKET
     value: keycloak-bucket

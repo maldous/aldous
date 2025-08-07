@@ -38,7 +38,6 @@ k8s_yaml([
     'k8s/aldous-service.yaml', 
     'k8s/aldous-ingress.yaml',
     'k8s/pg-cluster.yaml',
-
     'k8s/minio-secret.yaml',
     'k8s/oidc-protection.yaml',
     'k8s/oidc-user.yaml',
@@ -101,6 +100,13 @@ local_resource(
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
+local_resource(
+  'minio_secret',
+  cmd='kubectl apply -f k8s/minio-secret.yaml',
+  resource_deps=['kind_cluster'],
+  trigger_mode=TRIGGER_MODE_AUTO,
+)
+
 # Build images after registry is ready
 local_resource(
   'build_images',
@@ -143,7 +149,7 @@ local_resource(
 local_resource(
   'deploy_keycloak',
   cmd='helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update && helm upgrade --install keycloak bitnami/keycloak -f helm/keycloak-values.yaml --set externalDatabase.host=' + env['PG_HOST'] + ' --set extraEnv[1].value=http://' + env['MINIO_HOST'] + ':9000',
-  resource_deps=['deploy_minio', 'keycloak_admin_secret'],
+  resource_deps=['deploy_minio', 'keycloak_admin_secret', 'minio_secret'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
