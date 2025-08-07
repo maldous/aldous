@@ -1,20 +1,16 @@
 mode: standalone
 auth:
   existingSecret: minio-root-credentials
-
 persistence:
   enabled: true
   storageClass: standard
   size: 10Gi
-
 service:
   type: ClusterIP
   port: 9000
-
 consoleService:
   type: ClusterIP
   port: 9001
-
 resources:
   requests:
     memory: 256Mi
@@ -22,7 +18,6 @@ resources:
   limits:
     memory: 512Mi
     cpu: 500m
-
 buckets:
   - name: keycloak-bucket
     policy: none

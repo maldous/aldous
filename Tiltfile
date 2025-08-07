@@ -5,26 +5,21 @@ config.define_string('pg_host')
 config.define_string('minio_host')
 config.define_string('kong_image_tag')
 config.define_string('aldous_image_tag')
-
 cfg = config.parse()
 
-# Get git commit SHA for image tagging
 commit_sha = str(local('git rev-parse --short HEAD')).strip()
-
 network_iface = str(local("ip -o -4 route show to default | grep -v docker | head -1 | awk '{print $5}'")).strip()
 host_ip = str(local("ip -4 addr show " + network_iface + " | grep inet | grep -v 127 | head -1 | awk '{print $2}' | cut -d/ -f1")).strip()
-
 metallb_ip = host_ip
 metallb_range = host_ip + '-' + host_ip
 
-# Central image map - using localhost:5000 for Kind registry
 images = {
     "kong": {
         "name": "localhost:5000/kong-oidc",
         "tag": cfg.get("kong_image_tag") or "3.11-ubuntu"
     },
     "aldous": {
-        "name": "localhost:5000/aldous", 
+        "name": "localhost:5000/aldous",
         "tag": cfg.get("aldous_image_tag") or "latest"
     }
 }
@@ -35,13 +30,9 @@ env = {
     "MINIO_HOST":    cfg.get("minio_host")    or "minio.default.svc.cluster.local",
 }
 
-# Build images with live updates - moved after registry setup
-# Images will be built by Tilt automatically when registry is ready
-
-# Kubernetes manifests
 k8s_yaml([
     'k8s/aldous-deployment.yaml',
-    'k8s/aldous-service.yaml', 
+    'k8s/aldous-service.yaml',
     'k8s/aldous-ingress.yaml',
     'k8s/pg-cluster.yaml',
     'k8s/minio-secret.yaml',
@@ -50,24 +41,15 @@ k8s_yaml([
     'k8s/cloudflare-origin-cert-secret.yaml',
 ])
 
-# Infrastructure setup for Kind
-#local_resource(
-#  'kind_cluster',
-#  cmd='kind create cluster --config kind-config.yaml --wait 5m || true',
-#  trigger_mode=TRIGGER_MODE_AUTO,
-#)
-
 local_resource(
   'registry_setup',
   cmd='docker rm -f kind-registry 2>/dev/null || true && docker run -d --restart=always --name kind-registry --network kind registry:2 && until docker exec aldous-control-plane curl -f http://kind-registry:5000/v2/ 2>/dev/null; do echo "Waiting for registry..."; sleep 2; done',
-#  resource_deps=['kind_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
 local_resource(
   'metallb_setup',
   cmd='kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.12/config/manifests/metallb-native.yaml && kubectl wait --namespace metallb-system --for=condition=ready pod --selector=app=metallb --timeout=300s',
-#  resource_deps=['kind_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
@@ -81,7 +63,6 @@ local_resource(
 local_resource(
   'cloudnative_pg',
   cmd='kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml && kubectl wait --namespace cnpg-system --for=condition=ready pod --selector=app.kubernetes.io/name=cloudnative-pg --timeout=300s',
-#  resource_deps=['kind_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
@@ -95,25 +76,21 @@ local_resource(
 local_resource(
   'keycloak_admin_secret',
   cmd='kubectl get secret keycloak-admin >/dev/null 2>&1 || kubectl create secret generic keycloak-admin --from-literal=admin-password=$(openssl rand -base64 32)',
-#  resource_deps=['kind_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
 local_resource(
   'oidc_client_secret',
   cmd='kubectl get secret oidc-client-secret >/dev/null 2>&1 || kubectl create secret generic oidc-client-secret --from-literal=client-secret=$(openssl rand -base64 32)',
-#  resource_deps=['kind_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
 local_resource(
   'minio_secret',
   cmd='kubectl apply -f k8s/minio-secret.yaml',
-#  resource_deps=['kind_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
-# Build images after registry is ready
 local_resource(
   'build_images',
   cmd='docker build -t ' + images['kong']['name'] + ':' + images['kong']['tag'] + ' -f docker/Dockerfile.kong . && kind load docker-image ' + images['kong']['name'] + ':' + images['kong']['tag'] + ' --name aldous && docker build -t ' + images['aldous']['name'] + ':' + images['aldous']['tag'] + ' -f docker/Dockerfile.aldous . && kind load docker-image ' + images['aldous']['name'] + ':' + images['aldous']['tag'] + ' --name aldous',
@@ -121,9 +98,6 @@ local_resource(
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
-# Note: docker_build calls moved to local_resource to ensure proper dependency ordering
-
-# Helm deployments with explicit triggers
 local_resource(
   'deploy_minio',
   cmd='helm repo add minio https://charts.min.io/ && helm repo update && helm upgrade --install minio minio/minio -f helm/minio-values.yaml',
@@ -163,29 +137,24 @@ local_resource(
     'keycloak_realm_setup',
     cmd = """
 kubectl wait --for=condition=ready pod/keycloak-0 --timeout=300s
-sleep 30
 CLIENT_SECRET=$(kubectl get secret oidc-client-secret -o jsonpath='{.data.client-secret}' | base64 -d)
 ADMIN_PASSWORD=$(kubectl get secret keycloak-admin -o jsonpath='{.data.admin-password}' | base64 -d)
-
 kubectl exec -i keycloak-0 -- env CLIENT_SECRET="$CLIENT_SECRET" ADMIN_PASSWORD="$ADMIN_PASSWORD" bash <<'EOF'
 CONFIG=/tmp/kcadm.config
 REALM=aldous
 CLIENT_ID=kong
-
 /opt/bitnami/keycloak/bin/kcadm.sh config credentials \
   --server http://localhost:8080 \
   --realm master \
   --user admin \
   --password "$ADMIN_PASSWORD" \
   --config "$CONFIG"
-
 /opt/bitnami/keycloak/bin/kcadm.sh create realms --config "$CONFIG" \
   -s realm="$REALM" \
   -s enabled=true \
   -s registrationAllowed=true \
   -s sslRequired=external \
   -s displayName="$REALM"
-
 /opt/bitnami/keycloak/bin/kcadm.sh create clients -r "$REALM" --config "$CONFIG" \
   -s clientId="$CLIENT_ID" \
   -s 'redirectUris=["https://aldous.info/callback"]' \
@@ -197,9 +166,7 @@ CLIENT_ID=kong
   -s 'attributes."access.token.lifespan"=300' \
   -s 'attributes."sso.session.idle.timeout"=1800' \
   -s 'attributes."sso.session.max.lifespan"=36000'
-
 CLIENT_UUID=$(/opt/bitnami/keycloak/bin/kcadm.sh get clients -r "$REALM" --config "$CONFIG" -q clientId="$CLIENT_ID" --fields id --format csv --noquotes | tail -n1)
-
 /opt/bitnami/keycloak/bin/kcadm.sh create clients/$CLIENT_UUID/protocol-mappers/models -r "$REALM" --config "$CONFIG" -f - <<JSON
 {
   "name": "email",
@@ -216,7 +183,6 @@ CLIENT_UUID=$(/opt/bitnami/keycloak/bin/kcadm.sh get clients -r "$REALM" --confi
   }
 }
 JSON
-
 /opt/bitnami/keycloak/bin/kcadm.sh create clients/$CLIENT_UUID/protocol-mappers/models -r "$REALM" --config "$CONFIG" -f - <<JSON
 {
   "name": "preferred_username",
@@ -239,5 +205,4 @@ EOF
     trigger_mode=TRIGGER_MODE_AUTO,
 )
 
-# Aldous k8s resource with port forwarding
 k8s_resource('aldous', port_forwards=['8000:80'], resource_deps=['build_images', 'deploy_kong'])
