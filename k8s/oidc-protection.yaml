@@ -5,7 +5,7 @@ metadata:
 plugin: oidcify
 config:
   client_id: kong
-  client_secret: "{vault://env/OIDC_CLIENT_SECRET}"
+  client_secret: kong-secret
   consumer_name: oidc-user
   id_token_claims_header: X-Id-Token-Claims
   insecure_skip_verify: true
