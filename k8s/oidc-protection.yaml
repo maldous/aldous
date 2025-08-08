@@ -6,11 +6,7 @@ plugin: oidcify
 config:
   issuer: "https://auth.aldous.info/realms/aldous"
   client_id: kong
-  client_secret:
-    valueFrom:
-      secretKeyRef:
-        name: oidc-client-secret
-        key: client-secret
+  client_secret: "{vault://env/KONG_OIDC_CLIENT_SECRET}"
   redirect_uri: "https://aldous.info/callback"
   insecure_skip_verify: false
   consumer_name: oidc-user

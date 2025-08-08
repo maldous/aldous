@@ -35,7 +35,6 @@ k8s_yaml([
     'k8s/aldous-service.yaml',
     'k8s/aldous-ingress.yaml',
     'k8s/pg-cluster.yaml',
-    'k8s/minio-secret.yaml',
     'k8s/oidc-protection.yaml',
     'k8s/oidc-user.yaml',
     'k8s/cloudflare-origin-cert-secret.yaml',
@@ -87,7 +86,7 @@ local_resource(
 
 local_resource(
   'minio_secret',
-  cmd='kubectl apply -f k8s/minio-secret.yaml',
+  cmd='kubectl get secret minio-root-credentials >/dev/null 2>&1 || kubectl create secret generic minio-root-credentials --from-literal=root-user=minioadmin --from-literal=root-password=$(openssl rand -base64 32)',
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
@@ -155,6 +154,9 @@ CLIENT_ID=kong
   -s registrationAllowed=true \
   -s sslRequired=external \
   -s displayName="$REALM"
+# Delete existing client if it exists
+/opt/bitnami/keycloak/bin/kcadm.sh delete clients -r "$REALM" --config "$CONFIG" -q clientId="$CLIENT_ID" 2>/dev/null || true
+
 /opt/bitnami/keycloak/bin/kcadm.sh create clients -r "$REALM" --config "$CONFIG" \
   -s clientId="$CLIENT_ID" \
   -s 'redirectUris=["https://aldous.info/callback"]' \
