@@ -49,4 +49,4 @@ env:
   KONG_REAL_IP_HEADER: "X-Forwarded-For"
   KONG_REAL_IP_RECURSIVE: "on"
   KONG_HEADERS_UPSTREAM: "X-Forwarded-Proto:https"
-  KONG_VAULT_ENV_PREFIX: "KONG_"
+  VAULT_ENV_PREFIX: "KONG_"

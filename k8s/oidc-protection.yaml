@@ -4,12 +4,12 @@ metadata:
   name: oidc-protection
 plugin: oidcify
 config:
-  issuer: "https://auth.aldous.info/realms/aldous"
   client_id: kong
-  client_secret: "{vault://env/KONG_OIDC_CLIENT_SECRET}"
-  redirect_uri: "https://aldous.info/callback"
-  insecure_skip_verify: false
+  client_secret: "{vault://env/OIDC_CLIENT_SECRET}"
   consumer_name: oidc-user
   id_token_claims_header: X-Id-Token-Claims
+  insecure_skip_verify: true
+  issuer: "https://auth.aldous.info/realms/aldous"
+  redirect_uri: "https://aldous.info/callback"
   userinfo_claims_header: X-Userinfo-Claims
   use_userinfo: true

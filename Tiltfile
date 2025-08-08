@@ -154,9 +154,6 @@ CLIENT_ID=kong
   -s registrationAllowed=true \
   -s sslRequired=external \
   -s displayName="$REALM"
-# Delete existing client if it exists
-/opt/bitnami/keycloak/bin/kcadm.sh delete clients -r "$REALM" --config "$CONFIG" -q clientId="$CLIENT_ID" 2>/dev/null || true
-
 /opt/bitnami/keycloak/bin/kcadm.sh create clients -r "$REALM" --config "$CONFIG" \
   -s clientId="$CLIENT_ID" \
   -s 'redirectUris=["https://aldous.info/callback"]' \
@@ -165,6 +162,9 @@ CLIENT_ID=kong
   -s protocol=openid-connect \
   -s clientAuthenticatorType=client-secret \
   -s secret="$CLIENT_SECRET" \
+  -s serviceAccountsEnabled=true \
+  -s standardFlowEnabled=true \
+  -s directAccessGrantsEnabled=true \
   -s 'attributes."access.token.lifespan"=300' \
   -s 'attributes."sso.session.idle.timeout"=1800' \
   -s 'attributes."sso.session.max.lifespan"=36000'
