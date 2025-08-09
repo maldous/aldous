@@ -1,68 +1,24 @@
 load('ext://helm_remote', 'helm_remote')
 
-config.define_string('registry_port')
-config.define_string('pg_host')
-config.define_string('minio_host')
-config.define_string('kong_image_tag')
-config.define_string('aldous_image_tag')
-cfg = config.parse()
-
 commit_sha = str(local('git rev-parse --short HEAD')).strip()
-network_iface = str(local("ip -o -4 route show to default | grep -v docker | head -1 | awk '{print $5}'")).strip()
-host_ip = str(local("ip -4 addr show " + network_iface + " | grep inet | grep -v 127 | head -1 | awk '{print $2}' | cut -d/ -f1")).strip()
-metallb_ip = host_ip
-metallb_range = host_ip
 
 images = {
-    "kong": {
-        "name": "localhost:5000/kong-oidc",
-        "tag": cfg.get("kong_image_tag") or "3.11-ubuntu"
-    },
-    "aldous": {
-        "name": "localhost:5000/aldous",
-        "tag": cfg.get("aldous_image_tag") or commit_sha
-    }
+    "kong": { "name": "localhost:5000/kong-oidc", "tag": "3.11-ubuntu" },
+    "aldous": { "name": "localhost:5000/aldous", "tag": commit_sha }
 }
 
-env = {
-    "REGISTRY_PORT": cfg.get("registry_port") or "5000",
-    "PG_HOST":       cfg.get("pg_host")       or "pg-cluster-rw.default.svc.cluster.local",
-    "MINIO_HOST":    cfg.get("minio_host")    or "minio.default.svc.cluster.local",
-}
+k8s_yaml([ 'k8s/pod-security-policy.yaml', 'k8s/security-policies.yaml', 'k8s/aldous-rbac.yaml', 'k8s/aldous-secrets.yaml' ])
+k8s_yaml([ 'k8s/aldous-deployment.yaml', 'k8s/aldous-service.yaml', 'k8s/aldous-ingress.yaml', 'k8s/aldous-networkpolicy.yaml', 'k8s/aldous-pdb.yaml', 'k8s/aldous-priority.yaml' ])
+k8s_yaml([ 'k8s/pg-cluster.yaml', 'k8s/oidc-protection.yaml', 'k8s/oidc-user.yaml' ])
 
-# Deploy security policies and RBAC first
-k8s_yaml([
-    'k8s/pod-security-policy.yaml',
-    'k8s/security-policies.yaml',
-    'k8s/aldous-rbac.yaml',
-    'k8s/aldous-secrets.yaml',
-])
+watch_settings(ignore=['.git/', 'vendor/'])
 
-# Deploy application resources after RBAC is ready
-k8s_yaml([
-    'k8s/aldous-deployment.yaml',
-    'k8s/aldous-service.yaml',
-    'k8s/aldous-ingress.yaml',
-    'k8s/aldous-networkpolicy.yaml',
-    'k8s/aldous-pdb.yaml',
-    'k8s/aldous-priority.yaml',
-])
-
-# Deploy infrastructure
-k8s_yaml([
-    'k8s/pg-cluster.yaml',
-    'k8s/oidc-protection.yaml',
-    'k8s/oidc-user.yaml',
-])
-
-watch_settings(ignore=['.git/', 'node_modules/', 'vendor/', '__pycache__/'])
-
-local_resource(
-  'build_kong',
-  cmd='docker build -t ' + (images['kong']['name'] + ':' + images['kong']['tag']) +
-      ' -f docker/Dockerfile.kong . && ' +
-      'kind load docker-image ' + (images['kong']['name'] + ':' + images['kong']['tag']) +
-      ' --name aldous',
+local_resource( 'build_kong',
+  cmd="""
+set -e
+docker build -t localhost:5000/kong-oidc:3.11-ubuntu -f docker/Dockerfile.kong .
+kind load docker-image localhost:5000/kong-oidc:3.11-ubuntu --name aldous
+""",
   deps=['docker/Dockerfile.kong'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
@@ -74,59 +30,65 @@ custom_build(
   live_update=[sync('./app', '/var/www/html')],
 )
 
-# Tell Tilt to substitute the latest tag with the actual commit SHA
 k8s_image_json_path('{.spec.template.spec.containers[0].image}', images['aldous']['name'] + ':latest', images['aldous']['name'] + ':' + images['aldous']['tag'])
 
 local_resource(
   'cloudnative_pg',
-  cmd='kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml && ' +
-      'kubectl wait --namespace cnpg-system --for=condition=ready pod --selector=app.kubernetes.io/name=cloudnative-pg --timeout=300s',
+  cmd='kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.20/releases/cnpg-1.20.0.yaml && ' + 'kubectl wait --namespace cnpg-system --for=condition=ready pod --selector=app.kubernetes.io/name=cloudnative-pg --timeout=300s',
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
-local_resource(
-  'postgres_cluster',
+local_resource( 'postgres_cluster',
   cmd='kubectl apply -f k8s/pg-cluster.yaml && kubectl wait --for=condition=ready cluster/pg-cluster --timeout=300s',
   resource_deps=['cloudnative_pg'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
-local_resource(
-  'deploy_kong',
-  cmd='helm repo add kong https://charts.konghq.com && helm repo update && ' +
-      'helm upgrade --install kong kong/kong -f helm/kong-values.yaml ' +
-      '--set image.repository=' + images['kong']['name'] +
-      ' --set image.tag=' + images['kong']['tag'] +
-      ' --set env.pg_host=' + env['PG_HOST'] +
-      ' --set env.pg_database=app',
-  resource_deps=['postgres_cluster', 'build_kong'],  # wait for image to be loaded
+local_resource( 'deploy_kong',
+  cmd=r"""
+set -e
+CHKSUM=$(sha1sum helm/kong-values.yaml | cut -d' ' -f1)
+STATE=.tilt/kong.$CHKSUM
+mkdir -p .tilt
+[ -f "$STATE" ] || {
+  helm upgrade --install kong kong/kong \
+    -f helm/kong-values.yaml \
+    --set image.repository=localhost:5000/kong-oidc \
+    --set image.tag=3.11-ubuntu \
+    --set image.pullPolicy=IfNotPresent \
+    --history-max 2 --atomic --timeout 90s --reuse-values
+  touch "$STATE"
+}
+""",
+  deps=['helm/kong-values.yaml'],
+  resource_deps=['postgres_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
 local_resource(
   'deploy_minio',
-  cmd='helm repo add minio https://charts.min.io/ && helm repo update && helm upgrade --install minio minio/minio -f helm/minio-values.yaml',
+  cmd='helm upgrade --install minio minio/minio -f helm/minio-values.yaml',
   resource_deps=['postgres_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
 local_resource(
   'deploy_redis',
-  cmd='helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update && helm upgrade --install redis bitnami/redis -f helm/redis-values.yaml',
+  cmd='helm upgrade --install redis bitnami/redis -f helm/redis-values.yaml',
   resource_deps=['postgres_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
 local_resource(
   'deploy_memcached',
-  cmd='helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update && helm upgrade --install memcached bitnami/memcached -f helm/memcached-values.yaml',
+  cmd='helm upgrade --install memcached bitnami/memcached -f helm/memcached-values.yaml',
   resource_deps=['postgres_cluster'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
 local_resource(
   'deploy_keycloak',
-  cmd='helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update && helm upgrade --install keycloak bitnami/keycloak -f helm/keycloak-values.yaml --set externalDatabase.host=' + env['PG_HOST'],
+  cmd='helm upgrade --install keycloak bitnami/keycloak -f helm/keycloak-values.yaml',
   resource_deps=['deploy_minio'],
   trigger_mode=TRIGGER_MODE_AUTO,
 )
@@ -134,9 +96,10 @@ local_resource(
 local_resource(
     'keycloak_realm_setup',
     cmd = """
+set -e
 kubectl wait --for=condition=ready pod/keycloak-0 --timeout=300s
 ADMIN_PASSWORD=$(kubectl get secret keycloak-admin -o jsonpath='{.data.admin-password}' | base64 -d)
-kubectl exec -i keycloak-0 -- env CLIENT_SECRET="$CLIENT_SECRET" ADMIN_PASSWORD="$ADMIN_PASSWORD" bash <<'EOF'
+kubectl exec -i keycloak-0 -- env ADMIN_PASSWORD="$ADMIN_PASSWORD" bash <<'EOF'
 CONFIG=/tmp/kcadm.config
 REALM=aldous
 CLIENT_ID=kong
@@ -204,5 +167,3 @@ EOF
     resource_deps=['deploy_keycloak'],
     trigger_mode=TRIGGER_MODE_AUTO,
 )
-
-k8s_resource('aldous', port_forwards=['8000:80'], resource_deps=['deploy_kong'])
