@@ -50,3 +50,6 @@ extraEnvVars:
       secretKeyRef:
         name: minio-root-credentials
         key: root-password
+  - name: KC_LOG_LEVEL
+    value: "info,org.keycloak.protocol.oidc:debug,org.keycloak.authentication:debug,org.keycloak.events:debug,org.keycloak.services:debug"
+

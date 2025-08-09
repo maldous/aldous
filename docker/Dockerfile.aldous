@@ -1,7 +1,8 @@
 FROM php:8.4.11-cli-alpine
 RUN apk add --no-cache tzdata
-WORKDIR /app
-COPY app/ /app/
+ENV DOC_ROOT=/var/www/html
+WORKDIR $DOC_ROOT
+COPY app/ $DOC_ROOT/
 EXPOSE 8000
 USER www-data
-CMD ["php", "-S", "0.0.0.0:8000", "-t", "/app"]
+CMD ["php", "-S", "0.0.0.0:8000", "-t", "/var/www/html"]

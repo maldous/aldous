@@ -6,10 +6,12 @@ ingressController:
 image:
   repository: localhost:5000/kong-oidc
   tag: "3.11-ubuntu"
+  pullPolicy: IfNotPresent
 proxy:
-  type: LoadBalancer
+  type: NodePort
   http:
-    enabled: false
+    enabled: true
+    nodePort: 30080
   tls:
     enabled: true
     nodePort: 30443
@@ -36,7 +38,7 @@ env:
         key: password
   redis_host: "redis-master.default.svc.cluster.local"
   redis_port: 6379
-  OIDC_CLIENT_SECRET:
+  KONG_OIDC_CLIENT_SECRET:
     valueFrom:
       secretKeyRef:
         name: oidc-client-secret
@@ -45,8 +47,8 @@ env:
   pluginserver_names: oidcify
   pluginserver_oidcify_start_cmd: "/usr/local/bin/oidcify -kong-prefix /kong_prefix"
   pluginserver_oidcify_query_cmd: "/usr/local/bin/oidcify -dump"
-  KONG_TRUSTED_IPS: "0.0.0.0/0,::/0"
+  KONG_TRUSTED_IPS: "103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,104.16.0.0/13,104.24.0.0/14,108.162.192.0/18,131.0.72.0/22,141.101.64.0/18,162.158.0.0/15,172.64.0.0/13,173.245.48.0/20,188.114.96.0/20,190.93.240.0/20,197.234.240.0/22,198.41.128.0/17"
   KONG_REAL_IP_HEADER: "X-Forwarded-For"
   KONG_REAL_IP_RECURSIVE: "on"
-  KONG_HEADERS_UPSTREAM: "X-Forwarded-Proto:https"
+  KONG_HEADERS_UPSTREAM: "X-Forwarded-Proto:https,X-Forwarded-Host:$host"
   VAULT_ENV_PREFIX: "KONG_"

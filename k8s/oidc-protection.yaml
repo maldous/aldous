@@ -5,10 +5,10 @@ metadata:
 plugin: oidcify
 config:
   client_id: kong
-  client_secret: kong-secret
+  client_secret: secret
   consumer_name: oidc-user
   id_token_claims_header: X-Id-Token-Claims
-  insecure_skip_verify: true
+  insecure_skip_verify: false
   issuer: "https://auth.aldous.info/realms/aldous"
   redirect_uri: "https://aldous.info/callback"
   userinfo_claims_header: X-Userinfo-Claims
