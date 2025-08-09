@@ -83,20 +83,29 @@ local_resource(
     resource_deps=['wait-cnpg-webhook']
 )
 
-
-
-
-
-k8s_resource('redis-master', resource_deps=['deploy-pg-cluster'])
-k8s_resource('memcached', resource_deps=['deploy-pg-cluster'])
-k8s_resource('minio', resource_deps=['cnpg-operator'])
+# Infra services don't depend on Postgres
+k8s_resource('redis-master')
+k8s_resource('memcached')
+k8s_resource('minio')
 k8s_resource('minio-post-job', resource_deps=['minio'])
-k8s_resource('keycloak', resource_deps=['minio', 'deploy-pg-cluster'])
-k8s_resource('kong-kong', new_name='kong', resource_deps=['deploy-pg-cluster'])
+
+# Postgres cluster comes from 'deploy-pg-cluster' local_resource (already depends on CNPG webhook)
+# Keycloak needs PG + MinIO (+ Redis if enabled)
+k8s_resource('keycloak', resource_deps=['deploy-pg-cluster', 'minio', 'redis-master'])
+
+# Kong DB migrations must run after PG is ready
 k8s_resource('kong-kong-init-migrations', resource_deps=['deploy-pg-cluster'])
-k8s_resource('kong-kong-pre-upgrade-migrations', resource_deps=['deploy-pg-cluster'])
-k8s_resource('kong-kong-post-upgrade-migrations', resource_deps=['deploy-pg-cluster'])
+k8s_resource('kong-kong-pre-upgrade-migrations', resource_deps=['kong-kong-init-migrations'])
+
+# Kong proxy should start after migrations complete
+k8s_resource('kong-kong', new_name='kong', resource_deps=['kong-kong-init-migrations', 'kong-kong-pre-upgrade-migrations'])
+
+# Post-upgrade migrations only after Kong is up (no cycle)
+k8s_resource('kong-kong-post-upgrade-migrations', resource_deps=['kong'])
+
+# App can come after Kong (for ingress availability)
 k8s_resource('aldous', resource_deps=['kong'], port_forwards=['8000:80'])
 k8s_resource('keycloak-setup', resource_deps=['keycloak'])
+
 # Configure image substitution
 k8s_image_json_path('{.spec.template.spec.containers[0].image}', images['aldous']['name'] + ':latest', images['aldous']['name'] + ':' + images['aldous']['tag'])
