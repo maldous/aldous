@@ -1,8 +1,11 @@
 FROM php:8.4.11-cli-alpine
-RUN apk add --no-cache tzdata
+RUN apk add --no-cache tzdata && \
+    addgroup -g 10001 appuser && \
+    adduser -u 10001 -G appuser -s /bin/sh -D appuser
 ENV DOC_ROOT=/var/www/html
 WORKDIR $DOC_ROOT
 COPY app/ $DOC_ROOT/
+RUN chown -R appuser:appuser $DOC_ROOT
 EXPOSE 8000
-USER www-data
+USER appuser
 CMD ["php", "-S", "0.0.0.0:8000", "-t", "/var/www/html"]

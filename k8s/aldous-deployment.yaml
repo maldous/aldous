@@ -12,28 +12,49 @@ spec:
       labels:
         app: aldous
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: aldous
+              topologyKey: kubernetes.io/hostname
+      serviceAccountName: aldous
       securityContext:
         runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: php
         image: localhost:5000/aldous:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Never
         ports:
         - containerPort: 8000
         securityContext:
           runAsNonRoot: true
-          runAsUser: 82
+          runAsUser: 10001
+          runAsGroup: 10001
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
           seccompProfile:
             type: RuntimeDefault
         resources:
           requests:
             cpu: "50m"
             memory: "64Mi"
+            ephemeral-storage: "100Mi"
           limits:
             cpu: "500m"
             memory: "256Mi"
+            ephemeral-storage: "500Mi"
         volumeMounts:
         - name: tmp
           mountPath: /tmp
@@ -45,7 +66,7 @@ spec:
           periodSeconds: 10
         readinessProbe:
           httpGet:
-            path: /
+            path: /health
             port: 8000
           initialDelaySeconds: 5
           periodSeconds: 5

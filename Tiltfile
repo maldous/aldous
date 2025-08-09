@@ -20,7 +20,7 @@ images = {
     },
     "aldous": {
         "name": "localhost:5000/aldous",
-        "tag": cfg.get("aldous_image_tag") or "latest"
+        "tag": cfg.get("aldous_image_tag") or commit_sha
     }
 }
 
@@ -30,10 +30,25 @@ env = {
     "MINIO_HOST":    cfg.get("minio_host")    or "minio.default.svc.cluster.local",
 }
 
+# Deploy security policies and RBAC first
+k8s_yaml([
+    'k8s/pod-security-policy.yaml',
+    'k8s/security-policies.yaml',
+    'k8s/aldous-rbac.yaml',
+    'k8s/aldous-secrets.yaml',
+])
+
+# Deploy application resources after RBAC is ready
 k8s_yaml([
     'k8s/aldous-deployment.yaml',
     'k8s/aldous-service.yaml',
     'k8s/aldous-ingress.yaml',
+    'k8s/aldous-networkpolicy.yaml',
+    'k8s/aldous-pdb.yaml',
+])
+
+# Deploy infrastructure
+k8s_yaml([
     'k8s/pg-cluster.yaml',
     'k8s/oidc-protection.yaml',
     'k8s/oidc-user.yaml',
@@ -52,11 +67,14 @@ local_resource(
 )
 
 custom_build(
-  ref=images['aldous']['name'] + ':' + images['aldous']['tag'],
+  ref=images['aldous']['name'] + ':latest',
   command='docker build -t $EXPECTED_REF -f docker/Dockerfile.aldous . && kind load docker-image $EXPECTED_REF --name aldous',
   deps=['docker/Dockerfile.aldous', 'app'],
   live_update=[sync('./app', '/var/www/html')],
 )
+
+# Tell Tilt to substitute the latest tag with the actual commit SHA
+k8s_image_json_path('{.spec.template.spec.containers[0].image}', images['aldous']['name'] + ':latest', images['aldous']['name'] + ':' + images['aldous']['tag'])
 
 local_resource(
   'cloudnative_pg',
