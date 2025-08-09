@@ -7,18 +7,18 @@ metadata:
     konghq.com/plugins: oidc-protection
 spec:
   tls:
-  - hosts:
-    - aldous.info
-    - "*.aldous.info"
-    secretName: cloudflare-origin-cert
+    - hosts:
+        - aldous.info
+        - "*.aldous.info"
+      secretName: cloudflare-origin-cert
   rules:
-  - host: aldous.info
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: aldous
-            port:
-              number: 80
+    - host: aldous.info
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: aldous
+                port:
+                  number: 80

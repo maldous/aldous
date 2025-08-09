@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: aldous
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
       app: aldous
@@ -15,12 +15,12 @@ spec:
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              labelSelector:
-                matchLabels:
-                  app: aldous
-              topologyKey: kubernetes.io/hostname
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: aldous
+                topologyKey: kubernetes.io/hostname
       serviceAccountName: aldous
       securityContext:
         runAsNonRoot: true
@@ -30,46 +30,52 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-      - name: php
-        image: localhost:5000/aldous:latest
-        imagePullPolicy: Never
-        ports:
-        - containerPort: 8000
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 10001
-          runAsGroup: 10001
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          capabilities:
-            drop:
-            - ALL
-          seccompProfile:
-            type: RuntimeDefault
-        resources:
-          requests:
-            cpu: "50m"
-            memory: "64Mi"
-            ephemeral-storage: "100Mi"
-          limits:
-            cpu: "500m"
-            memory: "256Mi"
-            ephemeral-storage: "500Mi"
-        volumeMounts:
-        - name: tmp
-          mountPath: /tmp
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 8000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 5
-          periodSeconds: 5
+        - name: php
+          image: localhost:5000/aldous:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+            privileged: false
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+              ephemeral-storage: "100Mi"
+            limits:
+              cpu: 100m
+              memory: 512Mi
+              ephemeral-storage: "500Mi"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          livenessProbe:
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
       volumes:
-      - name: tmp
-        emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      priorityClassName: high-priority

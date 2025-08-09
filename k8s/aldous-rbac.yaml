@@ -6,6 +6,7 @@ metadata:
   labels:
     app: aldous
 automountServiceAccountToken: false
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -13,13 +14,14 @@ metadata:
   name: aldous-role
   namespace: default
 rules:
-- apiGroups: [""]
-  resources: ["configmaps"]
-  verbs: ["get", "list"]
-- apiGroups: [""]
-  resources: ["secrets"]
-  verbs: ["get"]
-  resourceNames: ["aldous-config"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames: ["aldous-config"]
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -27,9 +29,9 @@ metadata:
   name: aldous-rolebinding
   namespace: default
 subjects:
-- kind: ServiceAccount
-  name: aldous
-  namespace: default
+  - kind: ServiceAccount
+    name: aldous
+    namespace: default
 roleRef:
   kind: Role
   name: aldous-role

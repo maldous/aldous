@@ -45,6 +45,7 @@ k8s_yaml([
     'k8s/aldous-ingress.yaml',
     'k8s/aldous-networkpolicy.yaml',
     'k8s/aldous-pdb.yaml',
+    'k8s/aldous-priority.yaml',
 ])
 
 # Deploy infrastructure
