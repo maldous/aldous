@@ -17,9 +17,31 @@ resources:
   requests:
     memory: 256Mi
     cpu: 100m
+    ephemeral-storage: 25Mi
   limits:
     memory: 512Mi
     cpu: 500m
+    ephemeral-storage: 50Mi
+securityContext:
+  enabled: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  runAsNonRoot: true
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  enabled: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
 buckets:
   - name: keycloak-bucket
     policy: none

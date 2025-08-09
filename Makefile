@@ -1,4 +1,4 @@
-.PHONY: up build install reset status logs lint policy help secrets tls-secret helm-repos tools registry
+.PHONY: up build install reset status logs lint policy help secrets tls-secret helm-repos tools registry generate-manifests
 
 SHELL := /usr/bin/env bash
 .SHELLFLAGS := -eu -o pipefail -c
@@ -75,16 +75,17 @@ lint: helm-repos
 
 help:
 	@echo "Targets:"
-	@echo "  install     Install pinned kind, kubectl, helm"
-	@echo "  tools       Print pinned versions"
-	@echo "  build       Create Kind cluster if missing"
-	@echo "  up          Start Tilt after secrets and repos"
-	@echo "  secrets     Ensure base secrets exist"
-	@echo "  tls-secret  Create or update Cloudflare origin cert"
-	@echo "  lint        Render charts for syntax checks"
-	@echo "  status      Show cluster and pod status"
-	@echo "  logs        Export Kind logs"
-	@echo "  reset       Delete cluster and prune Docker (CONFIRM_RESET=YES)"
+	@echo "  install           Install pinned kind, kubectl, helm"
+	@echo "  tools             Print pinned versions"
+	@echo "  build             Create Kind cluster if missing"
+	@echo "  up                Start Tilt after secrets and repos"
+	@echo "  secrets           Ensure base secrets exist"
+	@echo "  tls-secret        Create or update Cloudflare origin cert"
+	@echo "  generate-manifests Regenerate static k8s manifests from Helm charts"
+	@echo "  lint              Render charts for syntax checks"
+	@echo "  status            Show cluster and pod status"
+	@echo "  logs              Export Kind logs"
+	@echo "  reset             Delete cluster and prune Docker (CONFIRM_RESET=YES)"
 
 secrets: tls-secret build
 	@kubectl get secret keycloak-admin -n $(NAMESPACE) >/dev/null 2>&1 || \
@@ -106,10 +107,23 @@ secrets: tls-secret build
             --from-literal=username=app \
             --from-literal=password="$$(openssl rand -base64 24)"
 
+generate-manifests: helm-repos
+	@echo "Regenerating static Kubernetes manifests..."
+	@mkdir -p k8s/generated
+	@helm template kong kong/kong -f helm/kong-values.yaml \
+	  --set image.repository=localhost:5000/kong-oidc \
+	  --set image.tag=3.11-ubuntu \
+	  --set image.pullPolicy=IfNotPresent > k8s/generated/kong.yaml
+	@helm template redis bitnami/redis -f helm/redis-values.yaml > k8s/generated/redis.yaml
+	@helm template memcached bitnami/memcached -f helm/memcached-values.yaml > k8s/generated/memcached.yaml
+	@helm template minio minio/minio -f helm/minio-values.yaml > k8s/generated/minio.yaml
+	@helm template keycloak bitnami/keycloak -f helm/keycloak-values.yaml > k8s/generated/keycloak.yaml
+	@echo "Static manifests regenerated in k8s/generated/"
+
 tls-secret:
 	@if kubectl get secret cloudflare-origin-cert -n $(NAMESPACE) >/dev/null 2>&1; then \
           echo "cloudflare-origin-cert exists"; \
         else \
           test -n "$${CERT:-}" -a -n "$${KEY:-}" || { echo "Set CERT and KEY"; exit 1; }; \
-          kubectl create secret tls cloudflare-origin-cert --cert="$$CERT" --key="$$KEY" -n $(NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -; \
+          kubectl create secret tls cloudflare-origin-cert --cert="$(CERT)" --key="$(KEY)" -n $(NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -; \
         fi

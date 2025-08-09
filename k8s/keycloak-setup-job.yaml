@@ -1,0 +1,88 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-setup
+  namespace: default
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: keycloak-setup
+        image: bitnami/keycloak:latest
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - |
+          set -e
+          echo "Waiting for Keycloak to be ready..."
+          until curl -f http://keycloak:8080/health/ready; do
+            echo "Waiting for Keycloak..."
+            sleep 5
+          done
+          
+          ADMIN_PASSWORD=$(cat /etc/keycloak-admin/admin-password)
+          REALM=aldous
+          CLIENT_ID=kong
+          
+          /opt/bitnami/keycloak/bin/kcadm.sh config credentials \
+            --server http://keycloak:8080 \
+            --realm master \
+            --user admin \
+            --password "$ADMIN_PASSWORD" \
+            --config /tmp/kcadm.config
+          
+          if ! /opt/bitnami/keycloak/bin/kcadm.sh get realms/"$REALM" --config /tmp/kcadm.config >/dev/null 2>&1; then
+            /opt/bitnami/keycloak/bin/kcadm.sh create realms --config /tmp/kcadm.config \
+              -s realm="$REALM" -s enabled=true -s registrationAllowed=true -s sslRequired=external -s displayName="$REALM"
+          fi
+          
+          CLIENT_JSON='{
+            "clientId":"'"$CLIENT_ID"'",
+            "redirectUris":["https://aldous.info/callback"],
+            "webOrigins":["https://aldous.info"],
+            "publicClient":false,
+            "protocol":"openid-connect",
+            "clientAuthenticatorType":"client-secret",
+            "secret":"secret",
+            "serviceAccountsEnabled":true,
+            "standardFlowEnabled":true,
+            "directAccessGrantsEnabled":true,
+            "attributes":{
+              "access.token.lifespan":"300",
+              "sso.session.idle.timeout":"1800",
+              "sso.session.max.lifespan":"36000"
+            }
+          }'
+          
+          EXIST=$(/opt/bitnami/keycloak/bin/kcadm.sh get clients -r "$REALM" --config /tmp/kcadm.config -q clientId="$CLIENT_ID" --fields id --format csv --noquotes | tail -n1 || true)
+          if [ -n "$EXIST" ]; then
+            echo "$CLIENT_JSON" | /opt/bitnami/keycloak/bin/kcadm.sh update clients/"$EXIST" -r "$REALM" --config /tmp/kcadm.config -f -
+            CLIENT_UUID="$EXIST"
+          else
+            CLIENT_UUID=$(echo "$CLIENT_JSON" | /opt/bitnami/keycloak/bin/kcadm.sh create clients -r "$REALM" --config /tmp/kcadm.config -f - | tr -d '\r\n')
+          fi
+          
+          ensure_mapper() {
+            NAME="$1"; CLAIM="$2"; ATTR="$3"
+            MID=$(/opt/bitnami/keycloak/bin/kcadm.sh get clients/"$CLIENT_UUID"/protocol-mappers/models -r "$REALM" --config /tmp/kcadm.config \
+                  -q name="$NAME" --fields id --format csv --noquotes | tail -n1 || true)
+            PAYLOAD='{"name":"'"$NAME"'","protocol":"openid-connect","protocolMapper":"oidc-usermodel-property-mapper","consentRequired":false,"config":{"userinfo.token.claim":"true","user.attribute":"'"$ATTR"'","id.token.claim":"true","access.token.claim":"true","claim.name":"'"$CLAIM"'","jsonType.label":"String"}}'
+            if [ -n "$MID" ]; then
+              echo "$PAYLOAD" | /opt/bitnami/keycloak/bin/kcadm.sh update clients/"$CLIENT_UUID"/protocol-mappers/models/"$MID" -r "$REALM" --config /tmp/kcadm.config -f -
+            else
+              echo "$PAYLOAD" | /opt/bitnami/keycloak/bin/kcadm.sh create clients/"$CLIENT_UUID"/protocol-mappers/models -r "$REALM" --config /tmp/kcadm.config -f -
+            fi
+          }
+          ensure_mapper email email email
+          ensure_mapper preferred_username preferred_username username
+          
+          echo "Keycloak setup completed successfully"
+        volumeMounts:
+        - name: keycloak-admin
+          mountPath: /etc/keycloak-admin
+          readOnly: true
+      volumes:
+      - name: keycloak-admin
+        secret:
+          secretName: keycloak-admin

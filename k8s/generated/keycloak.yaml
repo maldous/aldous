@@ -1,0 +1,418 @@
+---
+# Source: keycloak/templates/networkpolicy.yaml
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: keycloak
+  namespace: "default"
+  labels:
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/version: 26.3.2
+    helm.sh/chart: keycloak-25.0.0
+    app.kubernetes.io/component: keycloak
+    app.kubernetes.io/part-of: keycloak
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: keycloak
+      app.kubernetes.io/name: keycloak
+      app.kubernetes.io/component: keycloak
+      app.kubernetes.io/part-of: keycloak
+  policyTypes:
+    - Ingress
+    - Egress
+  egress:
+    - {}
+  ingress:
+    - ports:
+        - port: 8080
+        - port: 7800
+---
+# Source: keycloak/templates/pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: keycloak
+  namespace: "default"
+  labels:
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/version: 26.3.2
+    helm.sh/chart: keycloak-25.0.0
+    app.kubernetes.io/component: keycloak
+    app.kubernetes.io/part-of: keycloak
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: keycloak
+      app.kubernetes.io/name: keycloak
+      app.kubernetes.io/component: keycloak
+      app.kubernetes.io/part-of: keycloak
+---
+# Source: keycloak/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keycloak
+  namespace: "default"
+  labels:
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/version: 26.3.2
+    helm.sh/chart: keycloak-25.0.0
+    app.kubernetes.io/component: keycloak
+    app.kubernetes.io/part-of: keycloak
+automountServiceAccountToken: true
+---
+# Source: keycloak/templates/configmap-env-vars.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-env-vars
+  namespace: "default"
+  labels:
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/version: 26.3.2
+    helm.sh/chart: keycloak-25.0.0
+    app.kubernetes.io/component: keycloak
+    app.kubernetes.io/part-of: keycloak
+data:
+  BITNAMI_DEBUG: "false"
+  KEYCLOAK_PRODUCTION: "false"
+  KC_LOG_LEVEL: "INFO"
+  KC_LOG_CONSOLE_OUTPUT: "default"
+  KC_BOOTSTRAP_ADMIN_USERNAME: "admin"
+  KC_BOOTSTRAP_ADMIN_PASSWORD_FILE: /opt/bitnami/keycloak/secrets/admin-password
+  KC_HTTP_PORT: "8080"
+  KC_HTTP_MANAGEMENT_PORT: "9000"
+  KC_HOSTNAME_STRICT: "false"
+  KC_HOSTNAME: "https://auth.aldous.info/"
+  KC_METRICS_ENABLED: "false"
+  KC_DB_URL: "jdbc:postgresql://pg-cluster-rw.default.svc.cluster.local:5432/app?currentSchema=public"
+  KC_DB_SCHEMA: "public"
+  KC_DB_PASSWORD_FILE: /opt/bitnami/keycloak/secrets/db-password
+  KC_DB_USERNAME_FILE: /opt/bitnami/keycloak/secrets/db-username
+  KC_CACHE: "ispn"
+  KC_CACHE_STACK: "jdbc-ping"
+  KC_CACHE_CONFIG_FILE: "cache-ispn.xml"
+  JAVA_OPTS_APPEND: "-Djgroups.dns.query=keycloak-headless.default.svc.cluster.local"
+  KC_HTTP_RELATIVE_PATH: "/"
+  KC_SPI_ADMIN_REALM: "master"
+---
+# Source: keycloak/templates/headless-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-headless
+  namespace: "default"
+  labels:
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/version: 26.3.2
+    helm.sh/chart: keycloak-25.0.0
+    app.kubernetes.io/component: keycloak
+    app.kubernetes.io/part-of: keycloak
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: http
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/component: keycloak
+    app.kubernetes.io/part-of: keycloak
+---
+# Source: keycloak/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: "default"
+  labels:
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/version: 26.3.2
+    helm.sh/chart: keycloak-25.0.0
+    app.kubernetes.io/component: keycloak
+    app.kubernetes.io/part-of: keycloak
+spec:
+  type: ClusterIP
+  sessionAffinity: None
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: http
+      nodePort: null
+  selector:
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/component: keycloak
+    app.kubernetes.io/part-of: keycloak
+---
+# Source: keycloak/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: keycloak
+  namespace: "default"
+  labels:
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/version: 26.3.2
+    helm.sh/chart: keycloak-25.0.0
+    app.kubernetes.io/component: keycloak
+    app.kubernetes.io/part-of: keycloak
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  podManagementPolicy: Parallel
+  serviceName: keycloak-headless
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: keycloak
+      app.kubernetes.io/name: keycloak
+      app.kubernetes.io/component: keycloak
+      app.kubernetes.io/part-of: keycloak
+  template:
+    metadata:
+      annotations:
+        checksum/configmap-env-vars: 272ef4a3e4bb4e2e0f7967c3586d68536099101d9283d3a0bbfc0ccfd99f00b4
+      labels:
+        app.kubernetes.io/instance: keycloak
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: keycloak
+        app.kubernetes.io/version: 26.3.2
+        helm.sh/chart: keycloak-25.0.0
+        app.kubernetes.io/component: keycloak
+        app.kubernetes.io/part-of: keycloak
+    spec:
+      serviceAccountName: keycloak
+      
+      automountServiceAccountToken: true
+      affinity:
+        podAffinity:
+          
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: keycloak
+                    app.kubernetes.io/name: keycloak
+                    app.kubernetes.io/component: keycloak
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        nodeAffinity:
+          
+      securityContext:
+        fsGroup: 1001
+        fsGroupChangePolicy: Always
+        supplementalGroups: []
+        sysctls: []
+      enableServiceLinks: true
+      initContainers:
+        - name: prepare-write-dirs
+          image: docker.io/bitnami/keycloak:26.3.2-debian-12-r2
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsGroup: 1001
+            runAsNonRoot: true
+            runAsUser: 1001
+            seLinuxOptions: {}
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            limits:
+              cpu: 150m
+              ephemeral-storage: 2Gi
+              memory: 192Mi
+            requests:
+              cpu: 100m
+              ephemeral-storage: 50Mi
+              memory: 128Mi
+          command:
+            - /bin/bash
+          args:
+            - -ec
+            - |
+              . /opt/bitnami/scripts/liblog.sh
+        
+              info "Copying writable dirs to empty dir"
+              # In order to not break the application functionality we need to make some
+              # directories writable, so we need to copy it to an empty dir volume
+              cp -r --preserve=mode,timestamps /opt/bitnami/keycloak/lib/quarkus /emptydir/app-quarkus-dir
+              cp -r --preserve=mode,timestamps /opt/bitnami/keycloak/data /emptydir/app-data-dir
+              cp -r --preserve=mode,timestamps /opt/bitnami/keycloak/providers /emptydir/app-providers-dir
+              cp -r --preserve=mode,timestamps /opt/bitnami/keycloak/themes /emptydir/app-themes-dir
+              info "Copy operation completed"
+          volumeMounts:
+           - name: empty-dir
+             mountPath: /emptydir
+      containers:
+        - name: keycloak
+          image: docker.io/bitnami/keycloak:26.3.2-debian-12-r2
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsGroup: 1001
+            runAsNonRoot: true
+            runAsUser: 1001
+            seLinuxOptions: {}
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: KC_SPI_STORAGE_S3_BUCKET
+              value: keycloak-bucket
+            - name: KC_SPI_STORAGE_S3_ENDPOINT
+              value: http://minio.default.svc.cluster.local:9000
+            - name: KC_SPI_STORAGE_S3_ACCESSKEY
+              valueFrom:
+                secretKeyRef:
+                  key: root-user
+                  name: minio-root-credentials
+            - name: KC_SPI_STORAGE_S3_SECRETKEY
+              valueFrom:
+                secretKeyRef:
+                  key: root-password
+                  name: minio-root-credentials
+            - name: KC_LOG_LEVEL
+              value: info,org.keycloak.protocol.oidc:debug,org.keycloak.authentication:debug,org.keycloak.events:debug,org.keycloak.services:debug
+          envFrom:
+            - configMapRef:
+                name: keycloak-env-vars
+          resources:
+            limits:
+              cpu: 750m
+              ephemeral-storage: 2Gi
+              memory: 768Mi
+            requests:
+              cpu: 500m
+              ephemeral-storage: 50Mi
+              memory: 512Mi
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: discovery
+              containerPort: 7800
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 120
+            periodSeconds: 1
+            successThreshold: 1
+            timeoutSeconds: 5
+            tcpSocket:
+              port: http
+          readinessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+            httpGet:
+              path: /realms/master
+              port: http
+          volumeMounts:
+            - name: empty-dir
+              mountPath: /tmp
+              subPath: tmp-dir
+            - name: empty-dir
+              mountPath: /bitnami/keycloak
+              subPath: app-volume-dir
+            - name: empty-dir
+              mountPath: /opt/bitnami/keycloak/conf
+              subPath: app-conf-dir
+            - name: empty-dir
+              mountPath: /opt/bitnami/keycloak/lib/quarkus
+              subPath: app-quarkus-dir
+            - name: empty-dir
+              mountPath: /opt/bitnami/keycloak/data
+              subPath: app-data-dir
+            - name: empty-dir
+              mountPath: /opt/bitnami/keycloak/providers
+              subPath: app-providers-dir
+            - name: empty-dir
+              mountPath: /opt/bitnami/keycloak/themes
+              subPath: app-themes-dir
+            - name: keycloak-secrets
+              mountPath: /opt/bitnami/keycloak/secrets
+      volumes:
+        - name: empty-dir
+          emptyDir: {}
+        - name: keycloak-secrets
+          projected:
+            sources:
+              - secret:
+                  name: keycloak-admin
+              - secret:
+                  name: pg-cluster-app
+                  items:
+                    - key: password
+                      path: db-password
+                    - key: username
+                      path: db-username
+---
+# Source: keycloak/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+  namespace: "default"
+  labels:
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/version: 26.3.2
+    helm.sh/chart: keycloak-25.0.0
+    app.kubernetes.io/component: keycloak
+    app.kubernetes.io/part-of: keycloak
+spec:
+  ingressClassName: "kong"
+  rules:
+    - host: "auth.aldous.info"
+      http:
+        paths:
+          - path: "/"
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: keycloak
+                port:
+                  name: http

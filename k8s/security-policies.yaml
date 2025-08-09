@@ -27,13 +27,13 @@ metadata:
   namespace: default
 spec:
   hard:
-    requests.cpu: "2"
-    requests.memory: "2Gi"
-    requests.ephemeral-storage: "4Gi"
-    limits.cpu: "4"
-    limits.memory: "4Gi"
-    limits.ephemeral-storage: "4Gi"
-    pods: "32"
-    services: "32"
-    secrets: "32"
-    configmaps: "32"
+    requests.cpu: "8"
+    limits.cpu: "16"
+    requests.memory: "12Gi"
+    limits.memory: "24Gi"
+    requests.ephemeral-storage: "16Gi"
+    limits.ephemeral-storage: "64Gi"
+    pods: "100"
+    services: "64"
+    secrets: "256"
+    configmaps: "256"
