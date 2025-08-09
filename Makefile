@@ -63,6 +63,7 @@ helm-repos:
 	@helm repo add kong https://charts.konghq.com >/dev/null 2>&1 || true
 	@helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 || true
 	@helm repo add minio https://charts.min.io/ >/dev/null 2>&1 || true
+	@helm repo add cnpg https://cloudnative-pg.github.io/charts >/dev/null 2>&1 || true
 	@helm repo update >/dev/null
 
 lint: helm-repos
@@ -110,6 +111,8 @@ secrets: tls-secret build
 generate-manifests: helm-repos
 	@echo "Regenerating static Kubernetes manifests..."
 	@mkdir -p k8s/generated
+	@helm template cnpg-operator cnpg/cloudnative-pg -f helm/cloudnative-pg-values.yaml > k8s/generated/cloudnative-pg-operator.yaml
+	@cp k8s/pg-cluster.yaml k8s/generated/pg-cluster.yaml
 	@helm template kong kong/kong -f helm/kong-values.yaml \
 	  --set image.repository=localhost:5000/kong-oidc \
 	  --set image.tag=3.11-ubuntu \

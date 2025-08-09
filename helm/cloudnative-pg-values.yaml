@@ -1,0 +1,45 @@
+# CloudNativePG Operator configuration
+operator:
+  image:
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+      ephemeral-storage: 25Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+      ephemeral-storage: 50Mi
+  securityContext:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    seccompProfile:
+      type: RuntimeDefault
+    capabilities:
+      drop:
+        - ALL
+
+# PostgreSQL Cluster configuration
+cluster:
+  name: pg-cluster
+  instances: 1
+  storage:
+    size: 10Gi
+    storageClass: standard
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+      ephemeral-storage: 25Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+      ephemeral-storage: 50Mi
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    runAsGroup: 999
+    fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault

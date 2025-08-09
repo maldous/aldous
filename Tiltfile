@@ -9,7 +9,7 @@ images = {
 }
 
 # Deploy infrastructure first
-k8s_yaml('k8s/cloudnative-pg.yaml')
+k8s_yaml('k8s/generated/cloudnative-pg-operator.yaml')
 k8s_yaml('k8s/kong-crds.yaml')
 k8s_yaml('k8s/generated/redis.yaml')
 k8s_yaml('k8s/generated/memcached.yaml')
@@ -22,9 +22,6 @@ k8s_yaml([
     'k8s/aldous-rbac.yaml',
     'k8s/aldous-secrets.yaml'
 ])
-
-# Deploy PostgreSQL cluster
-k8s_yaml('k8s/pg-cluster.yaml')
 
 # Deploy Keycloak
 k8s_yaml('k8s/generated/keycloak.yaml')
@@ -70,14 +67,28 @@ docker_build(
 )
 
 # Configure resource dependencies
-k8s_resource('cnpg-controller-manager', new_name='cnpg-operator')
-k8s_resource('redis-master', resource_deps=['cnpg-operator'])
-k8s_resource('memcached', resource_deps=['cnpg-operator'])
+k8s_resource('cnpg-operator-cloudnative-pg', new_name='cnpg-operator')
+
+# Wait for CNPG webhook to be ready before creating cluster
+local_resource(
+    'wait-cnpg-webhook',
+    cmd='kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=cloudnative-pg --timeout=300s && kubectl get service cnpg-webhook-service && sleep 5',
+    resource_deps=['cnpg-operator']
+)
+
+# Deploy PostgreSQL cluster after webhook is ready
+local_resource(
+    'deploy-pg-cluster',
+    cmd='kubectl apply -f k8s/generated/pg-cluster.yaml && kubectl wait --for=condition=Ready cluster/pg-cluster --timeout=300s',
+    resource_deps=['wait-cnpg-webhook']
+)
+
+k8s_resource('redis-master', resource_deps=['deploy-pg-cluster'])
+k8s_resource('memcached', resource_deps=['deploy-pg-cluster'])
 k8s_resource('minio', resource_deps=['cnpg-operator'])
-k8s_resource('keycloak', resource_deps=['minio', 'cnpg-operator'])
-k8s_resource('kong-kong', new_name='kong', resource_deps=['cnpg-operator'])
+k8s_resource('keycloak', resource_deps=['minio', 'deploy-pg-cluster'])
+k8s_resource('kong-kong', new_name='kong', resource_deps=['deploy-pg-cluster'])
 k8s_resource('aldous', resource_deps=['kong'], port_forwards=['8000:80'])
 k8s_resource('keycloak-setup', resource_deps=['keycloak'])
-
 # Configure image substitution
 k8s_image_json_path('{.spec.template.spec.containers[0].image}', images['aldous']['name'] + ':latest', images['aldous']['name'] + ':' + images['aldous']['tag'])
