@@ -83,11 +83,19 @@ local_resource(
     resource_deps=['wait-cnpg-webhook']
 )
 
+
+
+
+
 k8s_resource('redis-master', resource_deps=['deploy-pg-cluster'])
 k8s_resource('memcached', resource_deps=['deploy-pg-cluster'])
 k8s_resource('minio', resource_deps=['cnpg-operator'])
+k8s_resource('minio-post-job', resource_deps=['minio'])
 k8s_resource('keycloak', resource_deps=['minio', 'deploy-pg-cluster'])
 k8s_resource('kong-kong', new_name='kong', resource_deps=['deploy-pg-cluster'])
+k8s_resource('kong-kong-init-migrations', resource_deps=['deploy-pg-cluster'])
+k8s_resource('kong-kong-pre-upgrade-migrations', resource_deps=['deploy-pg-cluster'])
+k8s_resource('kong-kong-post-upgrade-migrations', resource_deps=['deploy-pg-cluster'])
 k8s_resource('aldous', resource_deps=['kong'], port_forwards=['8000:80'])
 k8s_resource('keycloak-setup', resource_deps=['keycloak'])
 # Configure image substitution
