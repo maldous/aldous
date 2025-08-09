@@ -1,4 +1,4 @@
-# Makefile for aldous dev stack
+.PHONY: up build install reset status logs lint policy help secrets tls-secret helm-repos tools registry
 
 SHELL := /usr/bin/env bash
 .SHELLFLAGS := -eu -o pipefail -c
@@ -6,12 +6,9 @@ SHELL := /usr/bin/env bash
 KIND_NAME := aldous
 NAMESPACE := default
 
-# Pin tool versions
 KIND_VERSION := v0.20.0
 KUBECTL_VERSION := v1.27.3
 HELM_VERSION := v3.14.4
-
-.PHONY: up build install reset status logs lint policy help secrets tls-secret helm-repos tools registry
 
 up: build secrets helm-repos
 	tilt up
@@ -76,9 +73,6 @@ lint: helm-repos
 	@echo "Render MinIO for syntax check"
 	@helm template minio minio/minio -f helm/minio-values.yaml >/dev/null
 
-policy:
-	@echo "(stub) run kube-score and Polaris here"
-
 help:
 	@echo "Targets:"
 	@echo "  install     Install pinned kind, kubectl, helm"
@@ -119,9 +113,3 @@ tls-secret:
           test -n "$${CERT:-}" -a -n "$${KEY:-}" || { echo "Set CERT and KEY"; exit 1; }; \
           kubectl create secret tls cloudflare-origin-cert --cert="$$CERT" --key="$$KEY" -n $(NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -; \
         fi
-
-#registry:
-#	@docker inspect kind-registry >/dev/null 2>&1 || docker run -d -p 5000:5000 --restart=always --name kind-registry registry:2
-#	@docker start kind-registry >/dev/null 2>&1 || true
-#	@docker network inspect kind >/dev/null 2>&1 && \
-#	  docker network connect --alias kind-registry kind kind-registry 2>/dev/null || true

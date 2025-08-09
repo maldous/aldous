@@ -1,4 +1,6 @@
 architecture: standalone
+image:
+  pullPolicy: IfNotPresent
 auth:
   enabled: false
 master:

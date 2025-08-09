@@ -1,4 +1,6 @@
 mode: standalone
+image:
+  pullPolicy: IfNotPresent
 auth:
   existingSecret: minio-root-credentials
 persistence:
