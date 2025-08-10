@@ -1,11 +1,26 @@
 FROM php:8.4.11-cli-alpine
-RUN apk add --no-cache tzdata && \
-    addgroup -g 10001 appuser && \
-    adduser -u 10001 -G appuser -s /bin/sh -D appuser
+
+RUN apk add --no-cache tzdata postgresql-dev $PHPIZE_DEPS \
+ && docker-php-ext-install pdo pdo_pgsql pcntl \
+ && apk del $PHPIZE_DEPS
+
+RUN addgroup -g 10001 appuser \
+ && adduser -u 10001 -G appuser -s /bin/sh -D appuser
+
 ENV DOC_ROOT=/var/www/html
 WORKDIR $DOC_ROOT
-COPY app/ $DOC_ROOT/
+
+COPY artisan composer.json composer.lock ./
+COPY app/ app/
+COPY bootstrap/ bootstrap/
+COPY config/ config/
+COPY routes/ routes/
+COPY resources/ resources/
+COPY public/ public/
+COPY vendor/ vendor/
+
 RUN chown -R appuser:appuser $DOC_ROOT
+
 EXPOSE 8000
 USER appuser
-CMD ["php", "-S", "0.0.0.0:8000", "-t", "/var/www/html"]
+CMD ["php", "-S", "0.0.0.0:8000", "-t", "/var/www/html/public"]

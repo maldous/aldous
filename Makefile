@@ -1,4 +1,4 @@
-.PHONY: up install tools build helm-repos secrets generate-manifests reset tls-secret help secrets-refresh-app-env env-print
+.PHONY: build generate-manifests helm-repos help reset secrets tls-secret tools up
 
 SHELL := /usr/bin/env bash
 .SHELLFLAGS := -eu -o pipefail -c
@@ -30,7 +30,6 @@ helm-repos:
 	@helm repo add minio https://charts.min.io/ >/dev/null 2>&1 || true
 	@helm repo add cnpg https://cloudnative-pg.github.io/charts >/dev/null 2>&1 || true
 	@helm repo add grafana https://grafana.github.io/helm-charts >/dev/null 2>&1 || true
-	@helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
 	@helm repo add meilisearch https://meilisearch.github.io/meilisearch-kubernetes >/dev/null 2>&1 || true
 	@helm repo add codecentric https://codecentric.github.io/helm-charts >/dev/null 2>&1 || true
 	@helm repo update >/dev/null
@@ -43,14 +42,13 @@ secrets:
 	@if [ ! -f .env ]; then \
 	  DBPASS=$$(kubectl get secret pg-cluster-app -n $(NAMESPACE) -o jsonpath='{.data.password}' 2>/dev/null | base64 -d); \
 	  APPKEY=$$(pwgen -s 32 1); \
-	  printf 'APP_ENV=local\nAPP_DEBUG=true\nAPP_KEY=%s\nAPP_URL=http://localhost\nLOG_CHANNEL=stack\nLOG_LEVEL=debug\nDB_CONNECTION=pgsql\nDB_HOST=pg-cluster-1-rw\nDB_PORT=5432\nDB_DATABASE=aldous\nDB_USERNAME=app\nDB_PASSWORD=%s\nCACHE_STORE=redis\nQUEUE_CONNECTION=redis\nSESSION_DRIVER=redis\nSESSION_LIFETIME=120\nREDIS_HOST=redis-master\nREDIS_PORT=6379\nREDIS_PASSWORD=\nMAIL_MAILER=smtp\nMAIL_HOST=mailhog\nMAIL_PORT=1025\nMAIL_ENCRYPTION=null\nMAIL_FROM_ADDRESS=root@aldous.info\nMAIL_FROM_NAME="root"\nFILESYSTEM_DISK=local\nMINIO_ENDPOINT=minio\nMINIO_USE_PATH_STYLE_ENDPOINT=true\n' "$$APPKEY" "$$DBPASS" > .env; \
+	  printf 'APP_ENV=local\nAPP_DEBUG=true\nAPP_KEY=%s\nAPP_URL=http://localhost\nLOG_CHANNEL=stderr\nLOG_LEVEL=debug\nDB_CONNECTION=pgsql\nDB_HOST=pg-cluster-1-rw\nDB_PORT=5432\nDB_DATABASE=aldous\nDB_USERNAME=app\nDB_PASSWORD=%s\nCACHE_STORE=redis\nQUEUE_CONNECTION=redis\nSESSION_DRIVER=redis\nSESSION_LIFETIME=120\nREDIS_HOST=redis-master\nREDIS_PORT=6379\nREDIS_PASSWORD=\nMAIL_MAILER=smtp\nMAIL_HOST=mailhog\nMAIL_PORT=1025\nMAIL_ENCRYPTION=null\nMAIL_FROM_ADDRESS=root@aldous.info\nMAIL_FROM_NAME="root"\nFILESYSTEM_DISK=local\nMINIO_ENDPOINT=minio\nMINIO_USE_PATH_STYLE_ENDPOINT=true\n' "$$APPKEY" "$$DBPASS" > .env; \
 	  echo "Created .env"; \
 	fi
 	@kubectl create secret generic app-env -n $(NAMESPACE) --from-env-file=.env --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
 generate-manifests: helm-repos
 	@mkdir -p k8s/generated
-	@helm show crds prometheus-community/kube-prometheus-stack > k8s/prometheus-crds.yaml
 	@helm template cnpg-operator cnpg/cloudnative-pg -f helm/cloudnative-pg-values.yaml --no-hooks > k8s/generated/cloudnative-pg-operator.yaml
 	@cp k8s/pg-cluster.yaml k8s/generated/pg-cluster.yaml
 	@helm template kong kong/kong -f helm/kong-values.yaml --set image.repository=localhost:5000/kong-oidc --set image.tag=3.11-ubuntu --set image.pullPolicy=IfNotPresent > k8s/generated/kong.yaml
@@ -58,7 +56,6 @@ generate-manifests: helm-repos
 	@helm template memcached bitnami/memcached -f helm/memcached-values.yaml --no-hooks > k8s/generated/memcached.yaml
 	@helm template minio minio/minio -f helm/minio-values.yaml --no-hooks > k8s/generated/minio.yaml
 	@helm template keycloak bitnami/keycloak -f helm/keycloak-values.yaml --no-hooks > k8s/generated/keycloak.yaml
-	@helm template prom-stack prometheus-community/kube-prometheus-stack -n observability -f helm/kube-prom-values.yaml --no-hooks > k8s/generated/prom-stack.yaml
 	@helm template loki grafana/loki -n observability -f helm/loki-values.yaml --no-hooks > k8s/generated/loki.yaml
 	@helm template tempo grafana/tempo -n observability -f helm/tempo-values.yaml --no-hooks > k8s/generated/tempo.yaml
 	@helm template grafana grafana/grafana -n observability -f helm/grafana-values.yaml --no-hooks > k8s/generated/grafana.yaml

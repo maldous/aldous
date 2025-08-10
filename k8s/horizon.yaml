@@ -13,6 +13,7 @@ spec:
       containers:
         - name: horizon
           image: localhost:5000/aldous:latest
+          workingDir: /var/www/html
           command: ["php","artisan","horizon"]
           envFrom:
             - secretRef: { name: app-env }

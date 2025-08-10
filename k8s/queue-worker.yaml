@@ -13,6 +13,7 @@ spec:
       containers:
         - name: worker
           image: localhost:5000/aldous:latest
+          workingDir: /var/www/html
           command: ["php","artisan","queue:work","--tries=3","--timeout=90","--verbose"]
           envFrom:
             - secretRef: { name: app-env }

@@ -83,6 +83,11 @@ spec:
               port: 8000
             initialDelaySeconds: 5
             periodSeconds: 5
+          volumeMounts:
+            - name: storage
+              mountPath: /var/www/html/storage
       volumes:
+        - name: storage
+          emptyDir: {}
         - name: tmp
           emptyDir: {}

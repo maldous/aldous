@@ -1,59 +1,61 @@
-# runme.sh
+<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
-## Overview
+<p align="center">
+<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
+</p>
 
-The runme.sh script bootstraps a MicroK8s stack on Ubuntu, preparing a PHP/Laravel environment.
+## About Laravel
 
-It cleans up any prior installation, connects to an external Ceph cluster, provisions object and block storage, deploys caching and database services, sets up an API gateway with OpenID Connect enforcement, and manages TLS certificates.
+Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
 
-When it finishes, there will be pods for Keycloak, Kong, Memcached, Redis, PostgreSQL, MinIO operator, Registry and Cert-Manager.
+- [Simple, fast routing engine](https://laravel.com/docs/routing).
+- [Powerful dependency injection container](https://laravel.com/docs/container).
+- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
+- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
+- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
+- [Robust background job processing](https://laravel.com/docs/queues).
+- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
 
-## Steps
+Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
-1. **Cleanup**
-   Stop any existing MicroK8s daemons, unmount leftover volumes, delete network namespaces, and purge previous MicroK8s and MicroCeph snaps.
+## Learning Laravel
 
-2. **MicroK8s Installation**
-   Install MicroK8s via snap, wait for the control plane and core addons to become ready.
+Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
 
-3. **Ceph Storage Backend**
-   Create RBD and CephFS pools on the external Ceph cluster, configure size and replication settings, initialize the filesystem, and register it with MicroK8s for dynamic provisioning.
+You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
 
-4. **MinIO Operator**
-   Enable the MinIO operator addon against the Ceph RBD backend, wait for the operator and console pods to roll out, then create a default bucket for application use.
+If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
 
-5. **Private Registry**
-   Enable the built-in MicroK8s registry on CephFS storage, mark its StorageClass as default, and verify registry pods are running.
+## Laravel Sponsors
 
-6. **PostgreSQL Cluster**
-   Activate the CloudNativePG addon, remove the hostpath default StorageClass, deploy a single-node PostgreSQL cluster with persistent volumes, then create application databases and user roles via Kubernetes secrets.
+We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
 
-7. **Caching Services**
-   Install Memcached using the Bitnami Helm chart, then deploy Redis in standalone mode without authentication. Both services run in the default namespace for low-latency caching.
+### Premium Partners
 
-8. **Kong API Gateway**
-   Add the Kong Helm repository, install or upgrade Kong pointing at the external PostgreSQL backend, expose it via LoadBalancer, and confirm that proxy and admin pods are healthy, along with the init-migrations job.
+- **[Vehikl](https://vehikl.com)**
+- **[Tighten Co.](https://tighten.co)**
+- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
+- **[64 Robots](https://64robots.com)**
+- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
+- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
+- **[Redberry](https://redberry.international/laravel-development)**
+- **[Active Logic](https://activelogic.com)**
 
-9. **Keycloak Identity Provider**
-   Deploy Keycloak against the PostgreSQL cluster, expose it through Kong with TLS, set up the admin user and realm, enable self-registration, and enforce HTTPS-only access.
+## Contributing
 
-10. **OIDC Integration**
-   Create a Kong consumer for OIDC users, apply a global plugin to enforce OpenID Connect using the configured Keycloak realm and client credentials.
+Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
 
-## Result
+## Code of Conduct
 
-After the script completes, the MicroK8s cluster has:
+In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
 
-- Ceph-backed block and filesystem storage
-- MinIO object storage operator with a default bucket
-- A private Docker registry for local images
-- CloudNativePG PostgreSQL cluster and three dedicated databases
-- Memcached and Redis for caching workloads
-- Kong API gateway securing routes and handling traffic
-- Keycloak managing user authentication and token issuance
-- A global Kong plugin enforcing OIDC on all incoming requests
+## Security Vulnerabilities
 
-## Summary
-```
+If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
 
-```
+## License
+
+The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
