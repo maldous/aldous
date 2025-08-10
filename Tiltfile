@@ -3,32 +3,80 @@ images = {
     "kong": { "name": "localhost:5000/kong-oidc", "tag": "3.11-ubuntu" },
     "aldous": { "name": "localhost:5000/aldous", "tag": commit_sha }
 }
+
+# --- core infra
+k8s_yaml('k8s/obs-ns.yaml')
 k8s_yaml('k8s/generated/cloudnative-pg-operator.yaml')
 k8s_yaml('k8s/generated/redis.yaml')
 k8s_yaml('k8s/generated/memcached.yaml')
 k8s_yaml('k8s/generated/minio.yaml')
-k8s_yaml(['k8s/pod-security-policy.yaml', 'k8s/security-policies.yaml', 'k8s/aldous-rbac.yaml', 'k8s/aldous-secrets.yaml' ])
+k8s_yaml(['k8s/pod-security-policy.yaml', 'k8s/security-policies.yaml', 'k8s/aldous-rbac.yaml', 'k8s/aldous-secrets.yaml'])
 k8s_yaml('k8s/generated/keycloak.yaml')
 k8s_yaml('k8s/generated/kong.yaml')
-k8s_yaml(['k8s/aldous-deployment.yaml', 'k8s/aldous-service.yaml', 'k8s/aldous-ingress.yaml', 'k8s/aldous-networkpolicy.yaml', 'k8s/aldous-pdb.yaml' ])
-k8s_yaml(['k8s/oidc-protection.yaml', 'k8s/oidc-user.yaml' ])
+k8s_yaml(['k8s/aldous-deployment.yaml', 'k8s/aldous-service.yaml', 'k8s/aldous-ingress.yaml', 'k8s/aldous-networkpolicy.yaml', 'k8s/aldous-pdb.yaml'])
+k8s_yaml(['k8s/oidc-protection.yaml', 'k8s/oidc-user.yaml'])
 k8s_yaml('k8s/keycloak-setup-job.yaml')
+
+# --- prometheus-operator CRDs must be applied BEFORE kube-prometheus-stack
+k8s_yaml('k8s/prometheus-crds.yaml')
+
+# wait until CRDs are Established to avoid "no matches for kind Alertmanager"
+local_resource(
+    'wait-monitoring-crds',
+    cmd="""
+set -e
+for crd in \
+  alertmanagers.monitoring.coreos.com \
+  alertmanagerconfigs.monitoring.coreos.com \
+  podmonitors.monitoring.coreos.com \
+  probes.monitoring.coreos.com \
+  prometheuses.monitoring.coreos.com \
+  prometheusrules.monitoring.coreos.com \
+  scrapeconfigs.monitoring.coreos.com \
+  servicemonitors.monitoring.coreos.com \
+  thanosrulers.monitoring.coreos.com
+do
+  kubectl wait --for=condition=Established --timeout=180s crd/$crd
+done
+""",
+)
+
+# kube-prometheus-stack (rendered with --include-crds, safe because CRDs are already applied)
+k8s_yaml('k8s/generated/prom-stack.yaml')
+
+# --- obs/tools
+k8s_yaml('k8s/generated/loki.yaml')
+k8s_yaml('k8s/generated/tempo.yaml')
+k8s_yaml('k8s/generated/grafana.yaml')
+k8s_yaml('k8s/generated/alloy.yaml')
+k8s_yaml('k8s/generated/mailhog.yaml')
+k8s_yaml('k8s/generated/meilisearch.yaml')
+
+# --- app workers
+k8s_yaml(['k8s/queue-worker.yaml', 'k8s/horizon.yaml'])
+
 watch_settings(ignore=['.git/', 'vendor/', '.tilt/', 'k8s/generated/'])
+
 docker_build(images['kong']['name'] + ':' + images['kong']['tag'], '.', dockerfile='docker/Dockerfile.kong')
 docker_build(images['aldous']['name'] + ':latest', '.', dockerfile='docker/Dockerfile.aldous', live_update=[ sync('./app', '/var/www/html') ])
+
 local_resource('kong-crds',
     cmd='kubectl apply -f k8s/kong-crds.yaml && kubectl wait --for=condition=Established --timeout=120s crd/kongplugins.configuration.konghq.com crd/kongclusterplugins.configuration.konghq.com crd/kongconsumers.configuration.konghq.com crd/kongingresses.configuration.konghq.com',
     deps=['k8s/kong-crds.yaml']
 )
+
 k8s_resource('cnpg-operator-cloudnative-pg')
+
 local_resource('wait-cnpg-webhook',
     cmd='kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=cloudnative-pg --timeout=300s && kubectl get service cnpg-webhook-service && sleep 5',
     resource_deps=['cnpg-operator-cloudnative-pg']
 )
+
 local_resource('deploy-pg-cluster',
     cmd='kubectl apply -f k8s/generated/pg-cluster.yaml && kubectl wait --for=condition=Ready cluster/pg-cluster --timeout=300s',
     resource_deps=['wait-cnpg-webhook']
 )
+
 k8s_resource('redis-master')
 k8s_resource('memcached')
 k8s_resource('minio')
@@ -38,13 +86,30 @@ k8s_resource('kong-kong-init-migrations', resource_deps=['deploy-pg-cluster', 'k
 k8s_resource('kong-kong-pre-upgrade-migrations', resource_deps=['kong-kong-init-migrations'])
 k8s_resource('kong-kong-post-upgrade-migrations', resource_deps=['kong-kong-pre-upgrade-migrations'])
 k8s_resource('kong-kong', resource_deps=['kong-kong-post-upgrade-migrations', 'kong-crds'])
+
+# prom stack components must depend on CRDs being ready
+k8s_resource('prom-stack-operator', resource_deps=['wait-monitoring-crds'])
+k8s_resource('prom-stack-kube-state-metrics', resource_deps=['wait-monitoring-crds'])
+k8s_resource('prom-stack-prometheus-node-exporter', resource_deps=['wait-monitoring-crds'])
+
+k8s_resource('loki')
+k8s_resource('tempo')
+k8s_resource('grafana', resource_deps=['loki','tempo'])
+k8s_resource('alloy')
+k8s_resource('mailhog')
+k8s_resource('meilisearch')
+
 k8s_resource('aldous', resource_deps=['kong-kong'], port_forwards=['8000:8000'], extra_pod_selectors=[{'app': 'aldous'}])
 k8s_resource('keycloak-setup', resource_deps=['keycloak'])
+k8s_resource('app-queue', resource_deps=['redis-master', 'aldous'])
+k8s_resource('app-horizon', resource_deps=['redis-master', 'aldous'])
+
 k8s_image_json_path(
     '{.spec.template.spec.containers[0].image}',
     images['aldous']['name'] + ':latest',
     images['aldous']['name'] + ':' + images['aldous']['tag']
 )
+
 local_resource('k8s-inspect',
     cmd="""
 set -e

@@ -28,6 +28,9 @@ helm-repos:
 	@helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 || true
 	@helm repo add minio https://charts.min.io/ >/dev/null 2>&1 || true
 	@helm repo add cnpg https://cloudnative-pg.github.io/charts >/dev/null 2>&1 || true
+	@helm repo add grafana https://grafana.github.io/helm-charts >/dev/null 2>&1 || true
+	@helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
+	@helm repo add meilisearch https://meilisearch.github.io/meilisearch-kubernetes >/dev/null 2>&1 || true
 	@helm repo update >/dev/null
 
 secrets:
@@ -45,6 +48,13 @@ generate-manifests:
 	@helm template memcached bitnami/memcached -f helm/memcached-values.yaml > k8s/generated/memcached.yaml
 	@helm template minio minio/minio -f helm/minio-values.yaml > k8s/generated/minio.yaml
 	@helm template keycloak bitnami/keycloak -f helm/keycloak-values.yaml > k8s/generated/keycloak.yaml
+	@helm template prom-stack prometheus-community/kube-prometheus-stack -n observability -f helm/kube-prom-values.yaml > k8s/generated/prom-stack.yaml
+	@helm template loki grafana/loki -n observability -f helm/loki-values.yaml > k8s/generated/loki.yaml
+	@helm template tempo grafana/tempo -n observability -f helm/tempo-values.yaml > k8s/generated/tempo.yaml
+	@helm template grafana grafana/grafana -n observability -f helm/grafana-values.yaml > k8s/generated/grafana.yaml
+	@helm template alloy grafana/alloy -n observability -f helm/alloy-values.yaml > k8s/generated/alloy.yaml
+	@helm template mailhog codecentric/mailhog -n tools -f helm/mailhog-values.yaml > k8s/generated/mailhog.yaml
+	@helm template meilisearch meilisearch/meilisearch -n tools -f helm/meilisearch-values.yaml > k8s/generated/meilisearch.yaml
 
 reset:
 	@kind delete cluster --name "$(KIND_NAME)" >/dev/null 2>&1 || true
