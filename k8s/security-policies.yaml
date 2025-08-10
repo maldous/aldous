@@ -18,8 +18,8 @@ spec:
   hard:
     requests.cpu: "16"
     limits.cpu: "32"
-    requests.memory: "32Gi"
-    limits.memory: "48Gi"
+    requests.memory: "48Gi"
+    limits.memory: "64Gi"
     requests.ephemeral-storage: "32Gi"
     limits.ephemeral-storage: "128Gi"
     pods: "100"
