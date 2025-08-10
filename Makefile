@@ -1,8 +1,9 @@
-.PHONY: up install tools build helm-repos secrets generate-manifests reset tls-secret help
+.PHONY: up install tools build helm-repos secrets generate-manifests reset tls-secret help secrets-refresh-app-env env-print
 
 SHELL := /usr/bin/env bash
 .SHELLFLAGS := -eu -o pipefail -c
 .DEFAULT_GOAL := up
+
 KIND_NAME := aldous
 NAMESPACE := default
 KIND_VERSION := v0.20.0
@@ -31,6 +32,7 @@ helm-repos:
 	@helm repo add grafana https://grafana.github.io/helm-charts >/dev/null 2>&1 || true
 	@helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
 	@helm repo add meilisearch https://meilisearch.github.io/meilisearch-kubernetes >/dev/null 2>&1 || true
+	@helm repo add codecentric https://codecentric.github.io/helm-charts >/dev/null 2>&1 || true
 	@helm repo update >/dev/null
 
 secrets:
@@ -38,6 +40,13 @@ secrets:
 	@kubectl get secret oidc-client-secret -n $(NAMESPACE) >/dev/null 2>&1 || kubectl create secret generic oidc-client-secret -n $(NAMESPACE) --from-literal=client-secret="$$(openssl rand -base64 48)" >/dev/null
 	@kubectl get secret minio-root-credentials -n $(NAMESPACE) >/dev/null 2>&1 || kubectl create secret generic minio-root-credentials -n $(NAMESPACE) --from-literal=root-user="$$(openssl rand -hex 12)" --from-literal=root-password="$$(openssl rand -base64 48)" >/dev/null
 	@kubectl get secret pg-cluster-app -n $(NAMESPACE) >/dev/null 2>&1 || kubectl create secret generic pg-cluster-app -n $(NAMESPACE) --from-literal=username=app --from-literal=password="$$(openssl rand -base64 24)" >/dev/null
+	@if [ ! -f .env ]; then \
+	  DBPASS=$$(kubectl get secret pg-cluster-app -n $(NAMESPACE) -o jsonpath='{.data.password}' 2>/dev/null | base64 -d); \
+	  APPKEY=$$(pwgen -s 32 1); \
+	  printf 'APP_ENV=local\nAPP_DEBUG=true\nAPP_KEY=%s\nAPP_URL=http://localhost\nLOG_CHANNEL=stack\nLOG_LEVEL=debug\nDB_CONNECTION=pgsql\nDB_HOST=pg-cluster-1-rw\nDB_PORT=5432\nDB_DATABASE=aldous\nDB_USERNAME=app\nDB_PASSWORD=%s\nCACHE_STORE=redis\nQUEUE_CONNECTION=redis\nSESSION_DRIVER=redis\nSESSION_LIFETIME=120\nREDIS_HOST=redis-master\nREDIS_PORT=6379\nREDIS_PASSWORD=\nMAIL_MAILER=smtp\nMAIL_HOST=mailhog\nMAIL_PORT=1025\nMAIL_ENCRYPTION=null\nMAIL_FROM_ADDRESS=root@aldous.info\nMAIL_FROM_NAME="root"\nFILESYSTEM_DISK=local\nMINIO_ENDPOINT=minio\nMINIO_USE_PATH_STYLE_ENDPOINT=true\n' "$$APPKEY" "$$DBPASS" > .env; \
+	  echo "Created .env"; \
+	fi
+	@kubectl create secret generic app-env -n $(NAMESPACE) --from-env-file=.env --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
 generate-manifests: helm-repos
 	@mkdir -p k8s/generated
@@ -71,6 +80,6 @@ tls-secret:
 help:
 	@echo "Targets:"
 	@echo "  up         Start Tilt after full install"
-	@echo "  install    Prepare tools, cluster, repos, secrets, manifests"
+	@echo "  install    Prepare tools, cluster, repos, secrets, manifests (auto-generates .env and app-env)"
 	@echo "  reset      Tear down cluster and prune Docker"
 	@echo "  tls-secret Create or update Cloudflare origin cert (set CERT and KEY)"
