@@ -7,8 +7,7 @@ spec:
   limits:
   - type: Container
     defaultRequest: { cpu: 50m, memory: 128Mi, ephemeral-storage: 256Mi }
-    default:        { cpu: 200m, memory: 256Mi, ephemeral-storage: 1Gi }
-    max:            { cpu: 1, memory: 2Gi, ephemeral-storage: 4Gi }
+    max: { cpu: "4", memory: "8Gi", ephemeral-storage: "8Gi" }
 ---
 apiVersion: v1
 kind: ResourceQuota
@@ -17,12 +16,12 @@ metadata:
   namespace: default
 spec:
   hard:
-    requests.cpu: "8"
-    limits.cpu: "16"
-    requests.memory: "12Gi"
-    limits.memory: "24Gi"
-    requests.ephemeral-storage: "16Gi"
-    limits.ephemeral-storage: "64Gi"
+    requests.cpu: "16"
+    limits.cpu: "32"
+    requests.memory: "32Gi"
+    limits.memory: "48Gi"
+    requests.ephemeral-storage: "32Gi"
+    limits.ephemeral-storage: "128Gi"
     pods: "100"
     services: "64"
     secrets: "256"

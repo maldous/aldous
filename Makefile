@@ -39,22 +39,23 @@ secrets:
 	@kubectl get secret minio-root-credentials -n $(NAMESPACE) >/dev/null 2>&1 || kubectl create secret generic minio-root-credentials -n $(NAMESPACE) --from-literal=root-user="$$(openssl rand -hex 12)" --from-literal=root-password="$$(openssl rand -base64 48)" >/dev/null
 	@kubectl get secret pg-cluster-app -n $(NAMESPACE) >/dev/null 2>&1 || kubectl create secret generic pg-cluster-app -n $(NAMESPACE) --from-literal=username=app --from-literal=password="$$(openssl rand -base64 24)" >/dev/null
 
-generate-manifests:
+generate-manifests: helm-repos
 	@mkdir -p k8s/generated
-	@helm template cnpg-operator cnpg/cloudnative-pg -f helm/cloudnative-pg-values.yaml > k8s/generated/cloudnative-pg-operator.yaml
+	@helm show crds prometheus-community/kube-prometheus-stack > k8s/prometheus-crds.yaml
+	@helm template cnpg-operator cnpg/cloudnative-pg -f helm/cloudnative-pg-values.yaml --no-hooks > k8s/generated/cloudnative-pg-operator.yaml
 	@cp k8s/pg-cluster.yaml k8s/generated/pg-cluster.yaml
 	@helm template kong kong/kong -f helm/kong-values.yaml --set image.repository=localhost:5000/kong-oidc --set image.tag=3.11-ubuntu --set image.pullPolicy=IfNotPresent > k8s/generated/kong.yaml
-	@helm template redis bitnami/redis -f helm/redis-values.yaml > k8s/generated/redis.yaml
-	@helm template memcached bitnami/memcached -f helm/memcached-values.yaml > k8s/generated/memcached.yaml
-	@helm template minio minio/minio -f helm/minio-values.yaml > k8s/generated/minio.yaml
-	@helm template keycloak bitnami/keycloak -f helm/keycloak-values.yaml > k8s/generated/keycloak.yaml
-	@helm template prom-stack prometheus-community/kube-prometheus-stack -n observability -f helm/kube-prom-values.yaml > k8s/generated/prom-stack.yaml
-	@helm template loki grafana/loki -n observability -f helm/loki-values.yaml > k8s/generated/loki.yaml
-	@helm template tempo grafana/tempo -n observability -f helm/tempo-values.yaml > k8s/generated/tempo.yaml
-	@helm template grafana grafana/grafana -n observability -f helm/grafana-values.yaml > k8s/generated/grafana.yaml
-	@helm template alloy grafana/alloy -n observability -f helm/alloy-values.yaml > k8s/generated/alloy.yaml
-	@helm template mailhog codecentric/mailhog -n tools -f helm/mailhog-values.yaml > k8s/generated/mailhog.yaml
-	@helm template meilisearch meilisearch/meilisearch -n tools -f helm/meilisearch-values.yaml > k8s/generated/meilisearch.yaml
+	@helm template redis bitnami/redis -f helm/redis-values.yaml --no-hooks > k8s/generated/redis.yaml
+	@helm template memcached bitnami/memcached -f helm/memcached-values.yaml --no-hooks > k8s/generated/memcached.yaml
+	@helm template minio minio/minio -f helm/minio-values.yaml --no-hooks > k8s/generated/minio.yaml
+	@helm template keycloak bitnami/keycloak -f helm/keycloak-values.yaml --no-hooks > k8s/generated/keycloak.yaml
+	@helm template prom-stack prometheus-community/kube-prometheus-stack -n observability -f helm/kube-prom-values.yaml --no-hooks > k8s/generated/prom-stack.yaml
+	@helm template loki grafana/loki -n observability -f helm/loki-values.yaml --no-hooks > k8s/generated/loki.yaml
+	@helm template tempo grafana/tempo -n observability -f helm/tempo-values.yaml --no-hooks > k8s/generated/tempo.yaml
+	@helm template grafana grafana/grafana -n observability -f helm/grafana-values.yaml --no-hooks > k8s/generated/grafana.yaml
+	@helm template alloy grafana/alloy -n observability -f helm/alloy-values.yaml --no-hooks > k8s/generated/alloy.yaml
+	@helm template mailhog codecentric/mailhog -n tools -f helm/mailhog-values.yaml --no-hooks > k8s/generated/mailhog.yaml
+	@helm template meilisearch meilisearch/meilisearch -n tools -f helm/meilisearch-values.yaml --no-hooks > k8s/generated/meilisearch.yaml
 
 reset:
 	@kind delete cluster --name "$(KIND_NAME)" >/dev/null 2>&1 || true

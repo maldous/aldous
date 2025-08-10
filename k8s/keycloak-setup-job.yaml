@@ -10,6 +10,9 @@ spec:
       containers:
       - name: keycloak-setup
         image: bitnami/keycloak:latest
+        resources:
+          requests: { cpu: "100m", memory: "256Mi" }
+          limits:   { cpu: "500m", memory: "1Gi" }  # NOT 8Gi
         command: ["/bin/bash"]
         args:
         - -c

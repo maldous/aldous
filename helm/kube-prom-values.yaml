@@ -1,19 +1,39 @@
 fullnameOverride: prom-stack
+
 grafana:
   enabled: false
+
 prometheus:
   prometheusSpec:
     enableRemoteWriteReceiver: true
-# keep low footprint on operator/kube-state-metrics/node-exporter
+
 kube-state-metrics:
   resources:
-    limits: { cpu: 200m, memory: 256Mi }
     requests: { cpu: 50m, memory: 128Mi }
+    limits:   { cpu: 200m, memory: 256Mi }
+
 prometheusOperator:
   resources:
-    limits: { cpu: 200m, memory: 256Mi }
     requests: { cpu: 50m, memory: 128Mi }
+    limits:   { cpu: 200m, memory: 256Mi }
+  admissionWebhooks:
+    enabled: true
+    failurePolicy: Fail
+    timeoutSeconds: 10
+    # use kube-webhook-certgen Job to create TLS secret (no cert-manager)
+    patch:
+      enabled: true
+      image:
+        registry: registry.k8s.io
+        repository: ingress-nginx/kube-webhook-certgen
+        tag: v20231226
+      priorityClassName: ""
+    certManager:
+      enabled: false
+    # ensure the secret name matches what pods mount
+    secretName: prom-stack-admission
+
 nodeExporter:
   resources:
-    limits: { cpu: 100m, memory: 128Mi }
     requests: { cpu: 20m, memory: 64Mi }
+    limits:   { cpu: 100m, memory: 128Mi }

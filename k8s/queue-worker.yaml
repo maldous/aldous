@@ -16,12 +16,19 @@ spec:
           command: ["php","artisan","queue:work","--tries=3","--timeout=90","--verbose"]
           envFrom:
             - secretRef: { name: app-env }
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: app-queue-pdb
 spec:
-  minAvailable: 1
+  maxUnavailable: 1
   selector:
     matchLabels: { app: app-queue }

@@ -41,3 +41,13 @@ chunksCache:  { enabled: false }
 resources:
   limits:   { cpu: 200m, memory: 256Mi }
   requests: { cpu: 50m,  memory: 128Mi }
+# helm/loki-values.yaml (add/ensure these)
+test:
+  enabled: false
+canary:
+  enabled: false
+
+resultsCache:
+  enabled: false
+chunksCache:
+  enabled: false

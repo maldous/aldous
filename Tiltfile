@@ -17,8 +17,11 @@ k8s_yaml(['k8s/aldous-deployment.yaml', 'k8s/aldous-service.yaml', 'k8s/aldous-i
 k8s_yaml(['k8s/oidc-protection.yaml', 'k8s/oidc-user.yaml'])
 k8s_yaml('k8s/keycloak-setup-job.yaml')
 
-# --- prometheus-operator CRDs must be applied BEFORE kube-prometheus-stack
-k8s_yaml('k8s/prometheus-crds.yaml')
+local_resource(
+  'apply-monitoring-crds',
+  cmd='kubectl apply --server-side --field-manager=tilt-crds --force-conflicts -f k8s/prometheus-crds.yaml',
+  deps=['k8s/prometheus-crds.yaml'],
+)
 
 # wait until CRDs are Established to avoid "no matches for kind Alertmanager"
 local_resource(
@@ -43,6 +46,20 @@ done
 
 # kube-prometheus-stack (rendered with --include-crds, safe because CRDs are already applied)
 k8s_yaml('k8s/generated/prom-stack.yaml')
+local_resource( 'wait-prom-admission-secret',
+  cmd='''bash -eu
+for i in {1..90}; do
+  if kubectl -n observability get secret prom-stack-admission >/dev/null 2>&1; then
+    exit 0
+  fi
+  sleep 2
+done
+echo "timeout waiting for secret/prom-stack-admission" >&2
+exit 1
+''',
+  resource_deps=['wait-monitoring-crds'],
+)
+k8s_resource('prom-stack-operator', resource_deps=['wait-prom-admission-secret'])
 
 # --- obs/tools
 k8s_yaml('k8s/generated/loki.yaml')
@@ -55,7 +72,7 @@ k8s_yaml('k8s/generated/meilisearch.yaml')
 # --- app workers
 k8s_yaml(['k8s/queue-worker.yaml', 'k8s/horizon.yaml'])
 
-watch_settings(ignore=['.git/', 'vendor/', '.tilt/', 'k8s/generated/'])
+watch_settings(ignore=['.git/', 'vendor/', '.tilt/'])
 
 docker_build(images['kong']['name'] + ':' + images['kong']['tag'], '.', dockerfile='docker/Dockerfile.kong')
 docker_build(images['aldous']['name'] + ':latest', '.', dockerfile='docker/Dockerfile.aldous', live_update=[ sync('./app', '/var/www/html') ])
@@ -80,14 +97,12 @@ local_resource('deploy-pg-cluster',
 k8s_resource('redis-master')
 k8s_resource('memcached')
 k8s_resource('minio')
-k8s_resource('minio-post-job', resource_deps=['minio'])
 k8s_resource('keycloak', resource_deps=['deploy-pg-cluster', 'minio', 'redis-master'])
 k8s_resource('kong-kong-init-migrations', resource_deps=['deploy-pg-cluster', 'kong-crds'])
 k8s_resource('kong-kong-pre-upgrade-migrations', resource_deps=['kong-kong-init-migrations'])
 k8s_resource('kong-kong-post-upgrade-migrations', resource_deps=['kong-kong-pre-upgrade-migrations'])
 k8s_resource('kong-kong', resource_deps=['kong-kong-post-upgrade-migrations', 'kong-crds'])
 
-# prom stack components must depend on CRDs being ready
 k8s_resource('prom-stack-operator', resource_deps=['wait-monitoring-crds'])
 k8s_resource('prom-stack-kube-state-metrics', resource_deps=['wait-monitoring-crds'])
 k8s_resource('prom-stack-prometheus-node-exporter', resource_deps=['wait-monitoring-crds'])

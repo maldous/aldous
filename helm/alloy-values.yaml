@@ -1,4 +1,15 @@
+# helm/alloy-values.yaml — fixed
 fullNameOverride: alloy
+
+# expose Alloy's HTTP server for the reloader (/-/reload on :12345)
+enableHttpServerPort: true
+listenAddr: 0.0.0.0
+listenPort: 12345
+
+# DaemonSet is fine for cluster-wide collection (keep if that's what you want)
+# controller:
+#   type: DaemonSet
+
 alloy:
   configMap:
     create: true
@@ -7,29 +18,31 @@ alloy:
         level  = "info"
         format = "logfmt"
       }
-      otelcol.receiver.otlp "default" {
-        protocols {
-          grpc { endpoint = "0.0.0.0:4317" }
-          http { endpoint = "0.0.0.0:4318" }
+
+      otelcol.receiver.otlp "ingest" {
+        grpc { endpoint = "0.0.0.0:4317" }
+        http { endpoint = "0.0.0.0:4318" }
+        output {
+          traces = [otelcol.processor.batch.default.input]
+          logs    = [otelcol.exporter.otlphttp.loki.input]
+          metrics = []
         }
       }
-      otelcol.exporter.otlphttp "loki" {
-        client {
-          endpoint = "http://loki.default.svc:3100/otlp"
+
+      otelcol.processor.batch "default" {
+        output {
+          traces = [otelcol.exporter.otlphttp.tempo.input]
         }
       }
+
       otelcol.exporter.otlphttp "tempo" {
-        client { endpoint = "http://tempo.default.svc:4318" }
+        client { endpoint = "http://tempo.observability.svc:4318" }
       }
-      otelcol.exporter.prometheus "prom" {
-        forward_to = []
+
+      otelcol.exporter.otlphttp "loki" {
+        client { endpoint = "http://loki.observability.svc:3100/otlp" }
       }
-      otelcol.processor.batch "default" {}
-      otelcol.service "default" {
-        pipelines {
-          traces  = [otelcol.receiver.otlp.default, otelcol.processor.batch.default, otelcol.exporter.otlphttp.tempo]
-        }
-      }
+
 service:
   enabled: true
   ports:
@@ -37,6 +50,7 @@ service:
       port: 4317
     - name: otlp-http
       port: 4318
+
 resources:
-  limits: { cpu: 200m, memory: 256Mi }
-  requests: { cpu: 50m, memory: 128Mi }
+  requests: { cpu: 50m,  memory: 128Mi }
+  limits:   { cpu: 200m, memory: 256Mi }
