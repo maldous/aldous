@@ -10,10 +10,10 @@ KIND_VERSION := v0.20.0
 KUBECTL_VERSION := v1.27.3
 HELM_VERSION := v3.14.4
 
-up: build secrets helm-repos
+up: 
 	tilt up
 
-build:
+build: secrets help-repos
 	@if kind get clusters | grep -qx '$(KIND_NAME)'; then echo "Kind cluster $(KIND_NAME) exists"; \
 	else kind create cluster --config kind-config.yaml --wait 5m; fi
 	@kubectl config use-context "kind-$(KIND_NAME)" >/dev/null
