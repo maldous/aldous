@@ -6,7 +6,6 @@ metadata:
   labels:
     app: aldous
 automountServiceAccountToken: false
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -21,7 +20,6 @@ rules:
     resources: ["secrets"]
     verbs: ["get"]
     resourceNames: ["aldous-config"]
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

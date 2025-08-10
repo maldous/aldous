@@ -55,33 +55,5 @@ After the script completes, the MicroK8s cluster has:
 
 ## Summary
 ```
-NAMESPACE            NAME                                            READY   STATUS
-cert-manager         cert-manager-7ff594b5bc-6qpp6                   1/1     Running
-cert-manager         cert-manager-cainjector-fd9bf654b-zrmw8         1/1     Running
-cert-manager         cert-manager-webhook-7749797f6-c9k9d            1/1     Running
-cnpg-system          cnpg-controller-manager-7956b7c488-mj9bj        1/1     Running
-container-registry   registry-579865c76c-67w9f                       1/1     Running
-default              aldous-858fd46b69-25qln                         1/1     Running
-default              aldous-858fd46b69-fv994                         1/1     Running
-default              keycloak-0                                      1/1     Running
-default              kong-kong-d4c64b5b-x4vq4                        2/2     Running
-default              kong-kong-post-upgrade-migrations-mr8p5         0/1     Completed
-default              kong-kong-pre-upgrade-migrations-2w9v5          0/1     Completed
-default              memcached-58d6f5dfc9-4lz5q                      1/1     Running
-default              pg-cluster-1                                    1/1     Running
-default              redis-master-0                                  1/1     Running
-kube-system          calico-kube-controllers-5947598c79-4vfcm        1/1     Running
-kube-system          calico-node-b5h86                               1/1     Running
-kube-system          coredns-79b94494c7-kf7mr                        1/1     Running
-kube-system          hostpath-provisioner-c778b7559-8fc24            1/1     Running
-metallb-system       controller-7ffc454778-t8g9n                     1/1     Running
-metallb-system       speaker-5f8m8                                   1/1     Running
-minio-operator       microk8s-microk8s-0                             2/2     Running
-minio-operator       minio-operator-5898ffdfcb-kgmbq                 1/1     Running
-minio-operator       minio-operator-5898ffdfcb-rnmgb                 1/1     Running
-rook-ceph            csi-cephfsplugin-provisioner-7bd8fb7c64-6pdlh   5/5     Running
-rook-ceph            csi-cephfsplugin-x6bpc                          2/2     Running
-rook-ceph            csi-rbdplugin-mfjtl                             2/2     Running
-rook-ceph            csi-rbdplugin-provisioner-5f7d95b6fb-dflr8      5/5     Running
-rook-ceph            rook-ceph-operator-684bbd569f-zz2zx             1/1     Running
+
 ```

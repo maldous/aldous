@@ -15,28 +15,19 @@ spec:
         - -c
         - |
           set -e
-          echo "Waiting for Keycloak to be ready..."
-          until curl -f http://keycloak/realms/master; do
-            echo "Waiting for Keycloak..."
-            sleep 5
-          done
-          
+          until curl -f http://keycloak/realms/master; do sleep 1; done
           ADMIN_PASSWORD=$(cat /etc/keycloak-admin/admin-password)
           REALM=aldous
           CLIENT_ID=kong
-          
           /opt/bitnami/keycloak/bin/kcadm.sh config credentials \
             --server http://keycloak \
             --realm master \
             --user admin \
             --password "$ADMIN_PASSWORD" \
             --config /tmp/kcadm.config
-          
           if ! /opt/bitnami/keycloak/bin/kcadm.sh get realms/"$REALM" --config /tmp/kcadm.config >/dev/null 2>&1; then
-            /opt/bitnami/keycloak/bin/kcadm.sh create realms --config /tmp/kcadm.config \
-              -s realm="$REALM" -s enabled=true -s registrationAllowed=true -s sslRequired=external -s displayName="$REALM"
+            /opt/bitnami/keycloak/bin/kcadm.sh create realms --config /tmp/kcadm.config -s realm="$REALM" -s enabled=true -s registrationAllowed=true -s sslRequired=external -s displayName="$REALM"
           fi
-          
           CLIENT_JSON='{
             "clientId":"'"$CLIENT_ID"'",
             "redirectUris":["https://aldous.info/callback"],
@@ -54,45 +45,28 @@ spec:
               "sso.session.max.lifespan":"36000"
             }
           }'
-          
           EXIST=$(/opt/bitnami/keycloak/bin/kcadm.sh get clients -r "$REALM" --config /tmp/kcadm.config -q clientId="$CLIENT_ID" --fields id --format csv --noquotes | tail -n1 || true)
           if [ -n "$EXIST" ] && [ "$EXIST" != "id" ]; then
-            echo "Updating existing client: $EXIST"
             echo "$CLIENT_JSON" | /opt/bitnami/keycloak/bin/kcadm.sh update clients/"$EXIST" -r "$REALM" --config /tmp/kcadm.config -f -
             CLIENT_UUID="$EXIST"
           else
-            echo "Creating new client"
             CLIENT_UUID=$(echo "$CLIENT_JSON" | /opt/bitnami/keycloak/bin/kcadm.sh create clients -r "$REALM" --config /tmp/kcadm.config -f - 2>/dev/null | tr -d '\r\n' || true)
             if [ -z "$CLIENT_UUID" ]; then
-              echo "Failed to create client, trying to get existing one"
               CLIENT_UUID=$(/opt/bitnami/keycloak/bin/kcadm.sh get clients -r "$REALM" --config /tmp/kcadm.config -q clientId="$CLIENT_ID" --fields id --format csv --noquotes | tail -n1)
             fi
           fi
-          
-          echo "Using client UUID: $CLIENT_UUID"
-          if [ -z "$CLIENT_UUID" ] || [ "$CLIENT_UUID" = "id" ]; then
-            echo "Error: Could not determine client UUID"
-            exit 1
-          fi
-          
           ensure_mapper() {
             NAME="$1"; CLAIM="$2"; ATTR="$3"
-            echo "Setting up mapper: $NAME"
-            MID=$(/opt/bitnami/keycloak/bin/kcadm.sh get clients/"$CLIENT_UUID"/protocol-mappers/models -r "$REALM" --config /tmp/kcadm.config \
-                  -q name="$NAME" --fields id --format csv --noquotes 2>/dev/null | tail -n1 || true)
+            MID=$(/opt/bitnami/keycloak/bin/kcadm.sh get clients/"$CLIENT_UUID"/protocol-mappers/models -r "$REALM" --config /tmp/kcadm.config -q name="$NAME" --fields id --format csv --noquotes 2>/dev/null | tail -n1 || true)
             PAYLOAD='{"name":"'"$NAME"'","protocol":"openid-connect","protocolMapper":"oidc-usermodel-property-mapper","consentRequired":false,"config":{"userinfo.token.claim":"true","user.attribute":"'"$ATTR"'","id.token.claim":"true","access.token.claim":"true","claim.name":"'"$CLAIM"'","jsonType.label":"String"}}'
             if [ -n "$MID" ] && [ "$MID" != "id" ]; then
-              echo "Updating existing mapper: $MID"
               echo "$PAYLOAD" | /opt/bitnami/keycloak/bin/kcadm.sh update clients/"$CLIENT_UUID"/protocol-mappers/models/"$MID" -r "$REALM" --config /tmp/kcadm.config -f - 2>/dev/null || true
             else
-              echo "Creating new mapper: $NAME"
               echo "$PAYLOAD" | /opt/bitnami/keycloak/bin/kcadm.sh create clients/"$CLIENT_UUID"/protocol-mappers/models -r "$REALM" --config /tmp/kcadm.config -f - 2>/dev/null || true
             fi
           }
           ensure_mapper email email email
           ensure_mapper preferred_username preferred_username username
-          
-          echo "Keycloak setup completed successfully"
         volumeMounts:
         - name: keycloak-admin
           mountPath: /etc/keycloak-admin

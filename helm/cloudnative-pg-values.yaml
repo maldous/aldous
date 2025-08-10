@@ -1,4 +1,3 @@
-# CloudNativePG Operator configuration
 operator:
   image:
     pullPolicy: IfNotPresent
@@ -19,8 +18,6 @@ operator:
     capabilities:
       drop:
         - ALL
-
-# PostgreSQL Cluster configuration
 cluster:
   name: pg-cluster
   instances: 1

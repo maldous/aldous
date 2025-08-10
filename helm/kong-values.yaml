@@ -1,8 +1,6 @@
 replicaCount: 2
-
 labels:
   app.kubernetes.io/instance: kong
-
 podDisruptionBudget:
   enabled: true
   minAvailable: 1

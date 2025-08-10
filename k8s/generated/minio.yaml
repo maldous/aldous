@@ -17,8 +17,8 @@ metadata:
     heritage: Helm
 type: Opaque
 data:
-  rootUser: "U3lVcEMyb3dXSnZ4REtBVG1lamg="
-  rootPassword: "VTJ1QU4zSjRxVFVyYzdyc1AzT3FFUllIN3RGZnNMVWRrZjVCZmpxMA=="
+  rootUser: "RUVSdVVpaHF5cTR4Zzg2SUdZbjY="
+  rootPassword: "U2JCcTZXclRoVkNJS3RscVlqdmRTdUhxNlZSVVJvZFJMZ3lTdVBmMw=="
 ---
 # Source: minio/templates/configmap.yaml
 apiVersion: v1
@@ -510,7 +510,7 @@ spec:
         app: minio
         release: minio
       annotations:
-        checksum/secrets: 4fd5e0e97a9cb9c7fac24ff6228cc81006ca4f4d255dae0f40900c7857349a6e
+        checksum/secrets: 2c68e5de594facb631547275a057956edb519db50e98aabf4a04eb51e05d35a8
         checksum/config: 891054f84b5fadf6f21c83bec596fa52fafb04641d2109e13b2387be774a0a5f
     spec:
       securityContext:

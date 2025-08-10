@@ -309,8 +309,6 @@ spec:
                 secretKeyRef:
                   key: root-password
                   name: minio-root-credentials
-            - name: KC_LOG_LEVEL
-              value: info,org.keycloak.protocol.oidc:debug,org.keycloak.authentication:debug,org.keycloak.events:debug,org.keycloak.services:debug
           envFrom:
             - configMapRef:
                 name: keycloak-env-vars
