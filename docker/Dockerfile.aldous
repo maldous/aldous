@@ -1,15 +1,22 @@
+# docker/Dockerfile.aldous — add phpredis so Laravel can use Redis
 FROM php:8.4.11-cli-alpine
 
-RUN apk add --no-cache tzdata postgresql-dev $PHPIZE_DEPS \
- && docker-php-ext-install pdo pdo_pgsql pcntl \
- && apk del $PHPIZE_DEPS
+# System deps + PHP extensions
+RUN set -eux; \
+    apk add --no-cache tzdata postgresql-dev $PHPIZE_DEPS; \
+    docker-php-ext-install pdo pdo_pgsql pcntl; \
+    pecl install redis; \
+    docker-php-ext-enable redis; \
+    apk del --no-network $PHPIZE_DEPS; \
+    rm -rf /tmp/pear ~/.pearrc
 
-RUN addgroup -g 10001 appuser \
- && adduser -u 10001 -G appuser -s /bin/sh -D appuser
+# Non-root user
+RUN addgroup -g 10001 appuser && adduser -u 10001 -G appuser -s /bin/sh -D appuser
 
 ENV DOC_ROOT=/var/www/html
 WORKDIR $DOC_ROOT
 
+# Copy Laravel app (expects vendor/ present)
 COPY artisan composer.json composer.lock ./
 COPY app/ app/
 COPY bootstrap/ bootstrap/
