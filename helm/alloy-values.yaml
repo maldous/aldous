@@ -1,0 +1,42 @@
+fullNameOverride: alloy
+alloy:
+  configMap:
+    create: true
+    content: |
+      logging {
+        level  = "info"
+        format = "logfmt"
+      }
+      otelcol.receiver.otlp "default" {
+        protocols {
+          grpc { endpoint = "0.0.0.0:4317" }
+          http { endpoint = "0.0.0.0:4318" }
+        }
+      }
+      otelcol.exporter.otlphttp "loki" {
+        client {
+          endpoint = "http://loki.default.svc:3100/otlp"
+        }
+      }
+      otelcol.exporter.otlphttp "tempo" {
+        client { endpoint = "http://tempo.default.svc:4318" }
+      }
+      otelcol.exporter.prometheus "prom" {
+        forward_to = []
+      }
+      otelcol.processor.batch "default" {}
+      otelcol.service "default" {
+        pipelines {
+          traces  = [otelcol.receiver.otlp.default, otelcol.processor.batch.default, otelcol.exporter.otlphttp.tempo]
+        }
+      }
+service:
+  enabled: true
+  ports:
+    - name: otlp-grpc
+      port: 4317
+    - name: otlp-http
+      port: 4318
+resources:
+  limits: { cpu: 200m, memory: 256Mi }
+  requests: { cpu: 50m, memory: 128Mi }

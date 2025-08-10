@@ -1,0 +1,9 @@
+testFramework:
+  enabled: false
+primary:
+  resources:
+    limits: { cpu: 200m, memory: 256Mi }
+    requests: { cpu: 50m, memory: 128Mi }
+  persistence:
+    enabled: false
+service: { type: ClusterIP }

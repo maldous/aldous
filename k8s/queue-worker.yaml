@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-queue
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: app-queue }
+  template:
+    metadata:
+      labels: { app: app-queue }
+    spec:
+      containers:
+        - name: worker
+          image: localhost:5000/aldous:latest
+          command: ["php","artisan","queue:work","--tries=3","--timeout=90","--verbose"]
+          envFrom:
+            - secretRef: { name: app-env }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: app-queue-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: app-queue }

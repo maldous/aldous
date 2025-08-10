@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-horizon
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: app-horizon }
+  template:
+    metadata:
+      labels: { app: app-horizon }
+    spec:
+      containers:
+        - name: horizon
+          image: localhost:5000/aldous:latest
+          command: ["php","artisan","horizon"]
+          envFrom:
+            - secretRef: { name: app-env }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-horizon
+spec:
+  selector: { app: app-horizon }
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

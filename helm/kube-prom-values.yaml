@@ -1,0 +1,19 @@
+fullnameOverride: prom-stack
+grafana:
+  enabled: false
+prometheus:
+  prometheusSpec:
+    enableRemoteWriteReceiver: true
+# keep low footprint on operator/kube-state-metrics/node-exporter
+kube-state-metrics:
+  resources:
+    limits: { cpu: 200m, memory: 256Mi }
+    requests: { cpu: 50m, memory: 128Mi }
+prometheusOperator:
+  resources:
+    limits: { cpu: 200m, memory: 256Mi }
+    requests: { cpu: 50m, memory: 128Mi }
+nodeExporter:
+  resources:
+    limits: { cpu: 100m, memory: 128Mi }
+    requests: { cpu: 20m, memory: 64Mi }

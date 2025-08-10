@@ -1,0 +1,7 @@
+service:
+  type: ClusterIP
+  ports: { smtp: 1025, http: 8025 }
+ingress: { enabled: false }
+resources:
+  limits: { cpu: 100m, memory: 128Mi }
+  requests: { cpu: 20m, memory: 64Mi }

@@ -1,0 +1,43 @@
+# helm/loki-values.yaml  (SingleBinary + filesystem; no 'directory' under common.storage)
+deploymentMode: SingleBinary
+singleBinary:
+  replicas: 1
+  persistence: { enabled: false }
+  extraVolumes:      [ { name: data, emptyDir: {} } ]
+  extraVolumeMounts: [ { name: data, mountPath: /var/loki } ]
+# zero simple-scalable
+read: { replicas: 0 }
+write: { replicas: 0 }
+backend: { replicas: 0 }
+gateway: { enabled: false }
+queryFrontend: { replicas: 0 }
+queryScheduler: { replicas: 0 }
+distributor: { replicas: 0 }
+ingester: { replicas: 0 }
+querier: { replicas: 0 }
+indexGateway: { replicas: 0 }
+compactor: { replicas: 0 }
+loki:
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+    filesystem:
+      chunks_directory: /var/loki/chunks
+      rules_directory:  /var/loki/rules
+      # ❌ remove admin_api_directory
+  schemaConfig:
+    configs:
+      - from: "2025-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index: { prefix: loki_index_, period: 24h }
+  ruler: { enabled: false }
+
+# turn off caches/memcached to keep it light
+resultsCache: { enabled: false }
+chunksCache:  { enabled: false }
+resources:
+  limits:   { cpu: 200m, memory: 256Mi }
+  requests: { cpu: 50m,  memory: 128Mi }
