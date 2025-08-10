@@ -24,9 +24,4 @@ Homestead.yaml
 Thumbs.db
 /.buildx-cache
 /nohup.out
-
-# Cloudflare origin certificates - keep out of git
-origin.crt
-origin.key
-*.crt
-*.key
+/k8s/generated
