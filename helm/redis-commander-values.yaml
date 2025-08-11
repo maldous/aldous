@@ -1,0 +1,28 @@
+# helm/redis-commander-values.yaml - Redis web UI
+replicaCount: 1
+
+image:
+  repository: rediscommander/redis-commander
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8081
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+redisHosts:
+  - label: redis
+    host: redis-master.default.svc.cluster.local
+    port: 6379
+
+httpAuth:
+  username: admin
+  password: admin

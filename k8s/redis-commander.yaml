@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-commander
+  namespace: tools
+  labels:
+    app: redis-commander
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-commander
+  template:
+    metadata:
+      labels:
+        app: redis-commander
+    spec:
+      containers:
+      - name: redis-commander
+        image: rediscommander/redis-commander:latest
+        ports:
+        - containerPort: 8081
+        env:
+        - name: REDIS_HOSTS
+          value: "redis:redis-master.default.svc.cluster.local:6379"
+        - name: HTTP_USER
+          value: "admin"
+        - name: HTTP_PASSWORD
+          value: "admin"
+        - name: PORT
+          value: "8081"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-commander
+  namespace: tools
+  labels:
+    app: redis-commander
+spec:
+  selector:
+    app: redis-commander
+  ports:
+  - port: 8081
+    targetPort: 8081
+    name: http
+  type: ClusterIP

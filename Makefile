@@ -33,6 +33,7 @@ helm-repos:
 	@helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
 	@helm repo add meilisearch https://meilisearch.github.io/meilisearch-kubernetes >/dev/null 2>&1 || true
 	@helm repo add codecentric https://codecentric.github.io/helm-charts >/dev/null 2>&1 || true
+	@helm repo add tn-redis-commander https://raw.githubusercontent.com/kubernetes-tn/redis-commander/master/.helm-charts/ >/dev/null 2>&1 || true
 	@helm repo update >/dev/null
 
 secrets:
@@ -64,6 +65,7 @@ generate-manifests: helm-repos
 	@helm template prometheus prometheus-community/prometheus -n observability -f helm/prometheus-values.yaml --no-hooks > k8s/generated/prometheus.yaml
 	@helm template mailhog codecentric/mailhog -n tools -f helm/mailhog-values.yaml --no-hooks > k8s/generated/mailhog.yaml
 	@helm template meilisearch meilisearch/meilisearch -n tools -f helm/meilisearch-values.yaml --no-hooks > k8s/generated/meilisearch.yaml
+	@cp k8s/redis-commander.yaml k8s/generated/redis-commander.yaml
 
 reset:
 	@kind delete cluster --name "$(KIND_NAME)" >/dev/null 2>&1 || true
