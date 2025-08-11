@@ -30,6 +30,7 @@ helm-repos:
 	@helm repo add minio https://charts.min.io/ >/dev/null 2>&1 || true
 	@helm repo add cnpg https://cloudnative-pg.github.io/charts >/dev/null 2>&1 || true
 	@helm repo add grafana https://grafana.github.io/helm-charts >/dev/null 2>&1 || true
+	@helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
 	@helm repo add meilisearch https://meilisearch.github.io/meilisearch-kubernetes >/dev/null 2>&1 || true
 	@helm repo add codecentric https://codecentric.github.io/helm-charts >/dev/null 2>&1 || true
 	@helm repo update >/dev/null
@@ -60,6 +61,7 @@ generate-manifests: helm-repos
 	@helm template tempo grafana/tempo -n observability -f helm/tempo-values.yaml --no-hooks > k8s/generated/tempo.yaml
 	@helm template grafana grafana/grafana -n observability -f helm/grafana-values.yaml --no-hooks > k8s/generated/grafana.yaml
 	@helm template alloy grafana/alloy -n observability -f helm/alloy-values.yaml --no-hooks > k8s/generated/alloy.yaml
+	@helm template prometheus prometheus-community/prometheus -n observability -f helm/prometheus-values.yaml --no-hooks > k8s/generated/prometheus.yaml
 	@helm template mailhog codecentric/mailhog -n tools -f helm/mailhog-values.yaml --no-hooks > k8s/generated/mailhog.yaml
 	@helm template meilisearch meilisearch/meilisearch -n tools -f helm/meilisearch-values.yaml --no-hooks > k8s/generated/meilisearch.yaml
 

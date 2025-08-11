@@ -5,3 +5,27 @@ testFramework:
 resources:
   limits: { cpu: 200m, memory: 256Mi }
   requests: { cpu: 50m, memory: 128Mi }
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    deleteDatasources:
+      - name: Prometheus
+        orgId: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-server.observability.svc:80
+        access: proxy
+        isDefault: true
+        orgId: 1
+      - name: Loki
+        type: loki
+        url: http://loki.observability.svc:3100
+        access: proxy
+        orgId: 1
+      - name: Tempo
+        type: tempo
+        url: http://tempo.observability.svc:3100
+        access: proxy
+        orgId: 1

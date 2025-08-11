@@ -25,7 +25,6 @@ alloy:
         output {
           traces = [otelcol.processor.batch.default.input]
           logs    = [otelcol.exporter.otlphttp.loki.input]
-          metrics = []
         }
       }
 
